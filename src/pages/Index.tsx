@@ -29,8 +29,10 @@ const Index = () => {
     setStep("schedule");
   };
 
-  const handleBooked = (result: Record<string, unknown>) => {
+  const handleBooked = (result: Record<string, unknown>, data: string, hr: string) => {
     setBookingResult(result);
+    setDataAgendamento(data);
+    setHorario(hr);
     setStep("confirmation");
   };
 
