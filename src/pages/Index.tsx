@@ -101,6 +101,9 @@ const Index = () => {
             cliente={cliente!}
             plano={plano!}
             bookingResult={bookingResult}
+            dataAgendamento={dataAgendamento}
+            horario={horario}
+            tempoTotal={servicos.reduce((sum, s) => sum + s.tempo, 0)}
             onRestart={handleRestart}
           />
         )}
