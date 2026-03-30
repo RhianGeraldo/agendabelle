@@ -24,7 +24,7 @@ interface ScheduleStepProps {
   cliente: Cliente;
   plano: Plano;
   servicos: Servico[];
-  onBooked: (result: Record<string, unknown>) => void;
+  onBooked: (result: Record<string, unknown>, data: string, horario: string) => void;
   onBack: () => void;
 }
 
@@ -94,10 +94,13 @@ export function ScheduleStep({ unit, cliente, plano, servicos, onBooked, onBack 
         codSala: slot.codProf,
         codVendedor: "",
       };
+      console.log("[AGENDAMENTO] Enviando bookingData:", JSON.stringify(bookingData, null, 2));
       const result = await gravarAgendamento(unit, bookingData);
+      console.log("[AGENDAMENTO] Resposta do servidor:", JSON.stringify(result, null, 2));
       toast.success("Agendamento realizado com sucesso!");
-      onBooked(result);
-    } catch {
+      onBooked(result, dia.data, slot.horario);
+    } catch (err) {
+      console.error("[AGENDAMENTO] Erro:", err);
       toast.error("Erro ao realizar agendamento");
     } finally {
       setBooking(false);

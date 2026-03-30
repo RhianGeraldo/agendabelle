@@ -14,6 +14,8 @@ const Index = () => {
   const [plano, setPlano] = useState<Plano | null>(null);
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [bookingResult, setBookingResult] = useState<Record<string, unknown> | null>(null);
+  const [dataAgendamento, setDataAgendamento] = useState("");
+  const [horario, setHorario] = useState("");
 
   const handleClienteFound = (u: string, c: Cliente) => {
     setUnit(u);
@@ -27,8 +29,10 @@ const Index = () => {
     setStep("schedule");
   };
 
-  const handleBooked = (result: Record<string, unknown>) => {
+  const handleBooked = (result: Record<string, unknown>, data: string, hr: string) => {
     setBookingResult(result);
+    setDataAgendamento(data);
+    setHorario(hr);
     setStep("confirmation");
   };
 
@@ -41,6 +45,8 @@ const Index = () => {
     setPlano(null);
     setServicos([]);
     setBookingResult(null);
+    setDataAgendamento("");
+    setHorario("");
   };
 
   return (
@@ -95,6 +101,9 @@ const Index = () => {
             cliente={cliente!}
             plano={plano!}
             bookingResult={bookingResult}
+            dataAgendamento={dataAgendamento}
+            horario={horario}
+            tempoTotal={servicos.reduce((sum, s) => sum + s.tempo, 0)}
             onRestart={handleRestart}
           />
         )}

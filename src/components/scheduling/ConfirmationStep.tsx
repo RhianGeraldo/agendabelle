@@ -7,10 +7,13 @@ interface ConfirmationStepProps {
   cliente: Cliente;
   plano: Plano;
   bookingResult: Record<string, unknown> | null;
+  dataAgendamento: string;
+  horario: string;
+  tempoTotal: number;
   onRestart: () => void;
 }
 
-export function ConfirmationStep({ cliente, plano, onRestart }: ConfirmationStepProps) {
+export function ConfirmationStep({ cliente, plano, dataAgendamento, horario, tempoTotal, onRestart }: ConfirmationStepProps) {
   return (
     <Card className="border-0 shadow-lg shadow-primary/5">
       <CardHeader className="text-center pb-2">
@@ -30,6 +33,18 @@ export function ConfirmationStep({ cliente, plano, onRestart }: ConfirmationStep
           <p>
             <span className="text-muted-foreground">Plano:</span>{" "}
             <span className="font-medium">{plano.nome}</span>
+          </p>
+          <p>
+            <span className="text-muted-foreground">Data:</span>{" "}
+            <span className="font-medium">{dataAgendamento}</span>
+          </p>
+          <p>
+            <span className="text-muted-foreground">Horário:</span>{" "}
+            <span className="font-medium">{horario}</span>
+          </p>
+          <p>
+            <span className="text-muted-foreground">Tempo de atendimento:</span>{" "}
+            <span className="font-medium">{tempoTotal} min</span>
           </p>
         </div>
         <p className="text-sm text-muted-foreground">

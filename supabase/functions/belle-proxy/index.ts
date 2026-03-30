@@ -100,11 +100,13 @@ Deno.serve(async (req) => {
       }
 
       case 'gravar-agendamento': {
+        console.log('[belle-proxy] gravar-agendamento body:', JSON.stringify(bookingData));
         data = await proxyPost(
           `${BASE_URL}/agenda/gravar`,
           token,
           bookingData
         );
+        console.log('[belle-proxy] gravar-agendamento response:', JSON.stringify(data));
         break;
       }
 
