@@ -34,6 +34,18 @@ export function ConfirmationStep({ cliente, plano, dataAgendamento, horario, tem
             <span className="text-muted-foreground">Plano:</span>{" "}
             <span className="font-medium">{plano.nome}</span>
           </p>
+          <p>
+            <span className="text-muted-foreground">Data:</span>{" "}
+            <span className="font-medium">{dataAgendamento}</span>
+          </p>
+          <p>
+            <span className="text-muted-foreground">Horário:</span>{" "}
+            <span className="font-medium">{horario}</span>
+          </p>
+          <p>
+            <span className="text-muted-foreground">Tempo de atendimento:</span>{" "}
+            <span className="font-medium">{tempoTotal} min</span>
+          </p>
         </div>
         <p className="text-sm text-muted-foreground">
           Seu agendamento foi enviado para o sistema. Você receberá uma confirmação em breve.
