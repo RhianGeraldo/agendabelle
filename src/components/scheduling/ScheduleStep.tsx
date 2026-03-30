@@ -24,7 +24,7 @@ interface ScheduleStepProps {
   cliente: Cliente;
   plano: Plano;
   servicos: Servico[];
-  onBooked: (result: Record<string, unknown>) => void;
+  onBooked: (result: Record<string, unknown>, data: string, horario: string) => void;
   onBack: () => void;
 }
 
