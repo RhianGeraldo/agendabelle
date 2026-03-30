@@ -14,6 +14,8 @@ const Index = () => {
   const [plano, setPlano] = useState<Plano | null>(null);
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [bookingResult, setBookingResult] = useState<Record<string, unknown> | null>(null);
+  const [dataAgendamento, setDataAgendamento] = useState("");
+  const [horario, setHorario] = useState("");
 
   const handleClienteFound = (u: string, c: Cliente) => {
     setUnit(u);
