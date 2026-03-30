@@ -7,6 +7,9 @@ interface ConfirmationStepProps {
   cliente: Cliente;
   plano: Plano;
   bookingResult: Record<string, unknown> | null;
+  dataAgendamento: string;
+  horario: string;
+  tempoTotal: number;
   onRestart: () => void;
 }
 
