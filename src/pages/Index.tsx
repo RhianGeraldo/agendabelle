@@ -45,6 +45,8 @@ const Index = () => {
     setPlano(null);
     setServicos([]);
     setBookingResult(null);
+    setDataAgendamento("");
+    setHorario("");
   };
 
   return (
