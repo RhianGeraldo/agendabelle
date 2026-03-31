@@ -137,10 +137,13 @@ const Index = () => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-lg">
-        <div className="text-center mb-8">
-          <h1 className="font-display text-3xl font-bold text-foreground tracking-tight">
-            Agendamento Online
-          </h1>
+        <div className="flex flex-col items-center mb-8">
+          <img 
+            src="/logo.png" 
+            alt="Agendamento Online" 
+            className="h-20 w-auto mb-2"
+            onError={(e) => (e.currentTarget.style.display = 'none')}
+          />
           <p className="text-muted-foreground mt-2">
             Agende seu procedimento de forma rápida e prática
           </p>
