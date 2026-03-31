@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { LoginStep } from "@/components/scheduling/LoginStep";
 import { PlansStep } from "@/components/scheduling/PlansStep";
 import { ScheduleStep } from "@/components/scheduling/ScheduleStep";
 import { ConfirmationStep } from "@/components/scheduling/ConfirmationStep";
-import type { Cliente, Plano, Servico } from "@/lib/api";
+import { AppointmentsStep } from "@/components/scheduling/AppointmentsStep";
+import { buscarHistoricoAgenda, buscarAgendamentosAbertos, buscarAgendamentosFinalizados, alterarStatusAgendamento, type Cliente, type Plano, type Servico, type AgendamentoHistorico } from "@/lib/api";
+import { format, subDays, addDays, subMonths, addMonths, parse } from "date-fns";
+import { toast } from "sonner";
 
 type Step = "login" | "plans" | "schedule" | "confirmation";
 
@@ -16,11 +19,95 @@ const Index = () => {
   const [bookingResult, setBookingResult] = useState<Record<string, unknown> | null>(null);
   const [dataAgendamento, setDataAgendamento] = useState("");
   const [horario, setHorario] = useState("");
+  
+  const [appointments, setAppointments] = useState<AgendamentoHistorico[]>([]);
+  const [loadingAppts, setLoadingAppts] = useState(false);
+
+  useEffect(() => {
+    if (step === "plans" && unit && cliente) {
+      let mounted = true;
+      const fetchAll = async () => {
+        try {
+          setLoadingAppts(true);
+          const hoje = new Date();
+          
+          const pastStart = format(subMonths(hoje, 2), "dd/MM/yyyy");
+          const pastEnd = format(hoje, "dd/MM/yyyy");
+          
+          const futureStart = format(hoje, "dd/MM/yyyy");
+          const futureEnd = format(addMonths(hoje, 2), "dd/MM/yyyy");
+
+          const results = await Promise.allSettled([
+            buscarAgendamentosAbertos(unit, 1, pastStart, pastEnd),
+            buscarAgendamentosAbertos(unit, 1, futureStart, futureEnd),
+            buscarAgendamentosFinalizados(unit, 1, pastStart, pastEnd),
+            buscarAgendamentosFinalizados(unit, 1, futureStart, futureEnd)
+          ]);
+
+          if (!mounted) return;
+
+          const allAppointments = new Map<number, AgendamentoHistorico>();
+          results.forEach(res => {
+            if (res.status === "fulfilled" && Array.isArray(res.value)) {
+              res.value.forEach((a: any) => {
+                if (a.cliente && String(a.cliente.cod) === String(cliente.codigo)) {
+                  allAppointments.set(a.codConsulta, a);
+                }
+              });
+            }
+          });
+
+          const sortedArray = Array.from(allAppointments.values()).sort((a, b) => {
+            const dateA = parse(a.dtAgenda, "dd/MM/yyyy", new Date());
+            const dateB = parse(b.dtAgenda, "dd/MM/yyyy", new Date());
+            if (dateA.getTime() === dateB.getTime()) {
+               return b.hrConsulta.localeCompare(a.hrConsulta);
+            }
+            return dateB.getTime() - dateA.getTime();
+          });
+
+          setAppointments(sortedArray);
+        } catch (err) {
+          console.error(err);
+          if (mounted) toast.error("Não foi possível carregar os agendamentos.");
+        } finally {
+          if (mounted) setLoadingAppts(false);
+        }
+      };
+
+      fetchAll();
+      return () => { mounted = false; };
+    }
+  }, [step, unit, cliente]);
 
   const handleClienteFound = (u: string, c: Cliente) => {
     setUnit(u);
     setCliente(c);
     setStep("plans");
+  };
+
+  const handleReschedule = async (appt: AgendamentoHistorico) => {
+    try {
+      await alterarStatusAgendamento(unit, appt.codConsulta, "Cancelado");
+      toast.success("O agendamento anterior foi cancelado. Sinta-se livre para agendar um novo horário!");
+      // Filter out the appt so the user can select the plan again immediately
+      setAppointments(prev => prev.filter(a => a.codConsulta !== appt.codConsulta));
+    } catch (err) {
+      toast.error("Erro ao cancelar agendamento.");
+      console.error(err);
+    }
+  };
+
+  const handleConfirmAppt = async (appt: AgendamentoHistorico) => {
+    try {
+      await alterarStatusAgendamento(unit, appt.codConsulta, "Confirmado");
+      toast.success("Agendamento confirmado com sucesso!");
+      // Update local state to reflect the change
+      setAppointments(prev => prev.map(a => a.codConsulta === appt.codConsulta ? { ...a, status: "Confirmado" } : a));
+    } catch (err) {
+      toast.error("Erro ao confirmar agendamento.");
+      console.error(err);
+    }
   };
 
   const handlePlanSelected = (p: Plano, s: Servico[]) => {
@@ -39,9 +126,7 @@ const Index = () => {
   const handleBack = (target: Step) => setStep(target);
 
   const handleRestart = () => {
-    setStep("login");
-    setUnit("");
-    setCliente(null);
+    setStep("plans");
     setPlano(null);
     setServicos([]);
     setBookingResult(null);
@@ -79,12 +164,24 @@ const Index = () => {
 
         {step === "login" && <LoginStep onClienteFound={handleClienteFound} />}
         {step === "plans" && cliente && (
-          <PlansStep
-            unit={unit}
-            cliente={cliente}
-            onPlanSelected={handlePlanSelected}
-            onBack={() => handleBack("login")}
-          />
+          <div className="space-y-6">
+            <PlansStep
+              unit={unit}
+              cliente={cliente}
+              appointments={appointments}
+              onPlanSelected={handlePlanSelected}
+              onBack={() => handleBack("login")}
+            />
+            <AppointmentsStep
+              unit={unit}
+              cliente={cliente}
+              appointments={appointments}
+              loading={loadingAppts}
+              onReschedule={handleReschedule}
+              onConfirmAppt={handleConfirmAppt}
+              isEmbedded={true}
+            />
+          </div>
         )}
         {step === "schedule" && cliente && plano && (
           <ScheduleStep

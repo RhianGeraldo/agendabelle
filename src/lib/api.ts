@@ -1,5 +1,3 @@
-import { supabase } from "@/integrations/supabase/client";
-
 export interface Unit {
   id: string;
   label: string;
@@ -13,33 +11,123 @@ export const UNITS: Unit[] = [
   { id: 'serra', label: 'Serra' },
 ];
 
-async function callProxy(body: Record<string, unknown>) {
-  const { data, error } = await supabase.functions.invoke('belle-proxy', {
-    body,
+const UNIT_TOKENS: Record<string, string> = {
+  mantena: '452166ad16be9184c85db73a97832d55',
+  'sao-mateus': '47ad4592f0438b5f4ba37c05e2ffc7e9',
+  linhares: '76683f1105194b9f9544cb9f1b356a5b',
+  aracruz: 'd4fd49c6235cbe09ea4cb0827f51f575',
+  serra: '8471d37f86e5c2d2cb213d8e092f2c64',
+};
+
+const BASE_URL = 'https://app.bellesoftware.com.br/api/release/controller/IntegracaoExterna/v1.0';
+
+function getToken(unit: string): string {
+  const token = UNIT_TOKENS[unit];
+  if (!token) throw new Error('Unidade inválida');
+  return token;
+}
+
+async function apiGet(url: string, token: string) {
+  console.log(`[API GET]: ${url}`);
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: { Authorization: token },
   });
-  if (error) throw new Error(error.message);
-  if (data?.error) throw new Error(data.error);
-  return data;
+  console.log(`[API GET RESPONSE STATUS]: ${res.status}`);
+  if (!res.ok) {
+    let msg = `API error: ${res.status}`;
+    try {
+      const errBody = await res.json();
+      msg = errBody.error || errBody.msg || msg;
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+async function apiPost(url: string, token: string, body: unknown) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: token,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let msg = `API error: ${res.status}`;
+    try {
+      const errBody = await res.json();
+      msg = errBody.error || errBody.msg || msg;
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+async function apiPut(url: string, token: string, body: unknown) {
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      Authorization: token,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let msg = `API error: ${res.status}`;
+    try {
+      const errBody = await res.json();
+      msg = errBody.error || errBody.msg || msg;
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  try {
+    return await res.json();
+  } catch {
+    return {}; // sometimes PUT endpoints return empty body
+  }
 }
 
 export async function buscarCliente(unit: string, cpf: string) {
-  return callProxy({ action: 'buscar-cliente', unit, cpf, codEstab: 1 });
+  const cleanCpf = cpf.replace(/\D/g, '');
+  if (cleanCpf.length < 11) throw new Error('CPF inválido');
+  return apiGet(`${BASE_URL}/cliente/listar?codEstab=1&cpf=${cleanCpf}`, getToken(unit));
 }
 
 export async function buscarPlanos(unit: string, codEstab: number, codCliente: number) {
-  return callProxy({ action: 'buscar-planos', unit, codEstab, codCliente });
+  return apiGet(`${BASE_URL}/cliente/planos?codEstab=${codEstab}&codCliente=${codCliente}`, getToken(unit));
+}
+
+export async function buscarHistoricoAgenda(unit: string, codEstab: number, codCliente: number, dtInicio: string, dtFim: string) {
+  return apiGet(`${BASE_URL}/cliente/agenda?codEstab=${codEstab}&codCliente=${codCliente}&dtInicio=${dtInicio}&dtFim=${dtFim}`, getToken(unit));
+}
+
+export async function buscarAgendamentosAbertos(unit: string, codEstab: number, dtInicio: string, dtFim: string) {
+  return apiGet(`${BASE_URL}/agendamentos?codEstab=${codEstab}&dtInicio=${dtInicio}&dtFim=${dtFim}`, getToken(unit));
+}
+
+export async function buscarAgendamentosFinalizados(unit: string, codEstab: number, dtInicio: string, dtFim: string) {
+  return apiGet(`${BASE_URL}/agendamentos/finalizados?codEstab=${codEstab}&dtInicio=${dtInicio}&dtFim=${dtFim}`, getToken(unit));
 }
 
 export async function buscarServicos(unit: string, codPlano: number) {
-  return callProxy({ action: 'buscar-servicos', unit, codPlano });
+  return apiGet(`${BASE_URL}/servico/listar?codPlano=${codPlano}`, getToken(unit));
 }
 
 export async function buscarDisponibilidade(unit: string, codEstab: number, dtAgenda: string, periodo: string) {
-  return callProxy({ action: 'buscar-disponibilidade', unit, codEstab, dtAgenda, periodo });
+  return apiGet(`${BASE_URL}/agenda/disponibilidade?codEstab=${codEstab}&dtAgenda=${dtAgenda}&periodo=${periodo}&tpAgd=s`, getToken(unit));
 }
 
 export async function gravarAgendamento(unit: string, bookingData: Record<string, unknown>) {
-  return callProxy({ action: 'gravar-agendamento', unit, bookingData });
+  return apiPost(`${BASE_URL}/agenda/gravar`, getToken(unit), bookingData);
+}
+
+export async function alterarStatusAgendamento(unit: string, codConsulta: number, status: string) {
+  return apiPut(`${BASE_URL}/agenda/status`, getToken(unit), {
+    codConsulta,
+    novoStatus: status
+  });
 }
 
 export interface Servico {
@@ -95,6 +183,20 @@ export interface Cliente {
   email: string;
 }
 
+export interface AgendamentoHistorico {
+  codConsulta: number;
+  dtAgenda: string;
+  hrConsulta: string;
+  status: string;
+  tipo: string;
+  codEstab: number;
+  tipo_obs: string;
+  observacao: string;
+  prof: { cod: string; nome: string };
+  sala: { cod: string; nome: string };
+  servicos: { cod: string; nome: string }[];
+}
+
 // Calculate available start times based on required duration
 export function calcularHorariosDisponiveis(
   profHorarios: HorarioSlot[],
@@ -103,7 +205,7 @@ export function calcularHorariosDisponiveis(
   const slotsNeeded = tempoTotalMinutos / 5;
   if (slotsNeeded <= 0 || profHorarios.length === 0) return [];
 
-  // Only free slots
+  // Only free slots (l represents 'livre' - free)
   const freeSlots = profHorarios
     .filter(h => h.cod === 'l' && h.bloq === 'l')
     .map(h => h.horario)
