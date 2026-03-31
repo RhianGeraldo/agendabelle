@@ -102,7 +102,10 @@ export function ScheduleStep({ unit, cliente, plano, servicos, onBooked, onBack 
               return dB.getTime() - dA.getTime();
             });
             const lastApptDate = parse(sortedHist[0].dtAgenda, "dd/MM/yyyy", new Date());
-            foundDate = addDays(lastApptDate, 40);
+            let suggested = addDays(lastApptDate, 40);
+            // Se cair no domingo, avança para segunda-feira
+            if (suggested.getDay() === 0) suggested = addDays(suggested, 1);
+            foundDate = suggested;
           }
         } catch (err) {
           console.error("Erro ao buscar histórico, usando data atual.", err);
