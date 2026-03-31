@@ -66,7 +66,8 @@ export function ScheduleStep({ unit, cliente, plano, servicos, onBooked, onBack 
           const reqEnd = format(hoje, "dd/MM/yyyy");
 
           const results = await Promise.allSettled([
-            buscarAgendamentosFinalizados(unit, 1, reqStart, reqEnd)
+            buscarAgendamentosFinalizados(unit, 1, reqStart, reqEnd),
+            buscarAgendamentosAbertos(unit, 1, reqStart, reqEnd)
           ]);
 
           const allHist: any[] = [];
@@ -82,11 +83,11 @@ export function ScheduleStep({ unit, cliente, plano, servicos, onBooked, onBack 
 
           console.log("[ScheduleStep ALL HIST BEFORE FILTER]", allHist);
 
-          // Filtra estritamente por 'Atendido'
+          // Filtra por 'Atendido', 'Aguardando' ou 'Confirmado'
           const atendidos = allHist.filter((a: any) => {
             if (!a.status) return false;
-            console.log("[ScheduleStep Checking Status] Original:", `"${a.status}"`, "->", a.status.trim().toLowerCase());
-            return a.status.trim().toLowerCase() === "atendido";
+            const statusLower = a.status.trim().toLowerCase();
+            return statusLower === "atendido" || statusLower === "aguardando" || statusLower === "confirmado";
           });
           
           console.log("[ScheduleStep ATENDIDOS AFTER FILTER]", atendidos);
