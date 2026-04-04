@@ -83,14 +83,17 @@ export function ScheduleStep({ unit, cliente, plano, servicos, onBooked, onBack 
 
           console.log("[ScheduleStep ALL HIST BEFORE FILTER]", allHist);
 
-          // Filtra por 'Atendido', 'Aguardando' ou 'Confirmado'
+          // Filtra por 'Atendido' ou 'Aguardando' E que contenham os mesmos serviços que estamos agendando
           const atendidos = allHist.filter((a: any) => {
-            if (!a.status) return false;
+            if (!a.status || !a.servicos) return false;
             const statusLower = a.status.trim().toLowerCase();
-            return statusLower === "atendido" || statusLower === "aguardando" || statusLower === "confirmado";
+            const hasSameService = a.servicos.some((as: any) => 
+               servicos.some(s => String(s.codServico) === String(as.cod))
+            );
+            return (statusLower === "atendido" || statusLower === "aguardando") && hasSameService;
           });
           
-          console.log("[ScheduleStep ATENDIDOS AFTER FILTER]", atendidos);
+          console.log("[ScheduleStep ATENDIDOS MESMO SERVICO]", atendidos);
 
           if (atendidos.length > 0) {
             const sortedHist = [...atendidos].sort((a: any, b: any) => {
@@ -124,7 +127,7 @@ export function ScheduleStep({ unit, cliente, plano, servicos, onBooked, onBack 
 
     fetchHistory();
     return () => { mounted = false; };
-  }, [unit, cliente.codigo]);
+  }, [unit, cliente.codigo, servicos]);
 
   // 2. Load Availability when targetDate changes
   useEffect(() => {
