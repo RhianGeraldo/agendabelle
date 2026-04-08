@@ -90,7 +90,7 @@ export function ScheduleStep({ unit, cliente, plano, servicos, onBooked, onBack 
             const hasSameService = a.servicos.some((as: any) => 
                servicos.some(s => String(s.codServico) === String(as.cod))
             );
-            return (statusLower === "atendido" || statusLower === "aguardando") && hasSameService;
+            return (statusLower === "atendido" || statusLower === "aguardando" || statusLower === "em atendimento") && hasSameService;
           });
           
           console.log("[ScheduleStep ATENDIDOS MESMO SERVICO]", atendidos);
