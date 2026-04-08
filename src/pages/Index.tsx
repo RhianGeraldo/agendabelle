@@ -110,6 +110,17 @@ const Index = () => {
     }
   };
 
+  const handleCheckIn = async (appt: AgendamentoHistorico) => {
+    try {
+      await alterarStatusAgendamento(unit, appt.codConsulta, "Aguardando");
+      toast.success("Check-in realizado com sucesso!");
+      setAppointments(prev => prev.map(a => a.codConsulta === appt.codConsulta ? { ...a, status: "Aguardando" } : a));
+    } catch (err) {
+      toast.error("Erro ao realizar check-in.");
+      console.error(err);
+    }
+  };
+
   const handlePlanSelected = (p: Plano, s: Servico[]) => {
     setPlano(p);
     setServicos(s);
@@ -182,6 +193,7 @@ const Index = () => {
               loading={loadingAppts}
               onReschedule={handleReschedule}
               onConfirmAppt={handleConfirmAppt}
+              onCheckIn={handleCheckIn}
               isEmbedded={true}
             />
           </div>

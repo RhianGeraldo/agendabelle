@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ArrowLeft, CalendarX, PlusCircle, ArrowRightCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, ArrowLeft, CalendarX, PlusCircle, ArrowRightCircle, CheckCircle2, LogIn } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,13 +21,14 @@ interface AppointmentsStepProps {
   appointments: AgendamentoHistorico[];
   loading: boolean;
   onConfirmAppt?: (appt: AgendamentoHistorico) => void;
+  onCheckIn?: (appt: AgendamentoHistorico) => void;
   onReschedule: (appt: AgendamentoHistorico) => void;
   onNewBooking?: () => void;
   onBack?: () => void;
   isEmbedded?: boolean;
 }
 
-export function AppointmentsStep({ cliente, appointments, loading, onNewBooking, onConfirmAppt, onReschedule, onBack, isEmbedded }: AppointmentsStepProps) {
+export function AppointmentsStep({ cliente, appointments, loading, onNewBooking, onConfirmAppt, onCheckIn, onReschedule, onBack, isEmbedded }: AppointmentsStepProps) {
   const [rescheduleConfirmAppt, setRescheduleConfirmAppt] = useState<AgendamentoHistorico | null>(null);
 
   const grouped = appointments.reduce((acc, appt) => {
@@ -118,6 +119,12 @@ export function AppointmentsStep({ cliente, appointments, loading, onNewBooking,
                               {isReagendavel && (
                                 <Button variant="outline" size="sm" className="w-full text-xs h-8" onClick={() => setRescheduleConfirmAppt(appt)}>
                                   <ArrowRightCircle className="h-3 w-3 mr-1" /> Reagendar
+                                </Button>
+                              )}
+
+                              {appt.status === "Confirmado" && onCheckIn && (
+                                <Button variant="default" size="sm" className="w-full text-xs h-8 bg-emerald-600 hover:bg-emerald-700" onClick={() => onCheckIn(appt)}>
+                                  <LogIn className="h-3 w-3 mr-1" /> Check-in
                                 </Button>
                               )}
 
