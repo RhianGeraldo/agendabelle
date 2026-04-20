@@ -50,8 +50,8 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack 
       // Confirma que não está checando lixo
       if (appt.status !== "Marcado" && appt.status !== "Confirmado") return false;
       // Checa os serviços do appt se tem match com serviços do plano
-      return appt.servicos.some(hs => 
-        plano.servicos.some(ps => String(ps.codServico) === String(hs.cod))
+      return (appt.servicos || []).some(hs => 
+        (plano.servicos || []).some(ps => String(ps.codServico) === String(hs.cod))
       );
     });
   };
@@ -102,7 +102,7 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack 
                       <span className="font-medium text-sm truncate">{plano.nome}</span>
                     </div>
                     <div className="flex flex-wrap gap-1.5 mt-2">
-                      {plano.servicos.map((s) => (
+                      {(plano.servicos || []).map((s) => (
                         <span
                           key={s.codServico}
                           className="text-xs px-2 py-0.5 rounded-full bg-accent text-accent-foreground"
