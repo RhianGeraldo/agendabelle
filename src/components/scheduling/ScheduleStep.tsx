@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
@@ -6,7 +6,7 @@ import {
   buscarDisponibilidade,
   gravarAgendamento,
   calcularHorariosDisponiveis,
-  buscarHistoricoAgenda,
+  addMinutesToTime,
   buscarAgendamentosAbertos,
   buscarAgendamentosFinalizados,
   type Cliente,
@@ -15,9 +15,9 @@ import {
   type DiaAgenda,
   type AgendamentoHistorico,
 } from "@/lib/api";
-import { ArrowLeft, Loader2, Calendar } from "lucide-react";
+import { ArrowLeft, Loader2, Calendar, Package } from "lucide-react";
 import { toast } from "sonner";
-import { format, subDays, addDays, subMonths, parse } from "date-fns";
+import { format, addDays, subMonths, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar as CalendarUI } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -26,8 +26,7 @@ import { cn } from "@/lib/utils";
 interface ScheduleStepProps {
   unit: string;
   cliente: Cliente;
-  plano: Plano;
-  servicos: Servico[];
+  selection: { plano: Plano; servicos: Servico[] }[];
   onBooked: (result: Record<string, unknown>, data: string, horario: string) => void;
   onBack: () => void;
 }
@@ -38,7 +37,7 @@ interface SlotOption {
   nomeProf: string;
 }
 
-export function ScheduleStep({ unit, cliente, plano, servicos, onBooked, onBack }: ScheduleStepProps) {
+export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: ScheduleStepProps) {
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadingSlots, setLoadingSlots] = useState(false);
   
@@ -50,7 +49,8 @@ export function ScheduleStep({ unit, cliente, plano, servicos, onBooked, onBack 
   const [booking, setBooking] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ slot: SlotOption; dia: DiaAgenda } | null>(null);
 
-  const tempoTotal = servicos.reduce((sum, s) => sum + s.tempo, 0);
+  const allServicos = useMemo(() => selection.flatMap(s => s.servicos), [selection]);
+  const tempoTotal = useMemo(() => allServicos.reduce((sum, s) => sum + s.tempo, 0), [allServicos]);
 
   // 1. Initial Load: Fetch history and calculate minAllowedDate
   useEffect(() => {
@@ -61,7 +61,6 @@ export function ScheduleStep({ unit, cliente, plano, servicos, onBooked, onBack 
         const hoje = new Date();
         let foundDate = hoje;
         try {
-          // Busca 3 meses para trás para garantir que pegamos a última sessão atendida
           const reqStart = format(subMonths(hoje, 3), "dd/MM/yyyy");
           const reqEnd = format(hoje, "dd/MM/yyyy");
 
@@ -71,35 +70,26 @@ export function ScheduleStep({ unit, cliente, plano, servicos, onBooked, onBack 
           ]);
 
           const allHist: any[] = [];
-          results.forEach((res, i) => {
-            console.log(`[ScheduleStep REQ ${i+1}] status:`, res.status);
+          results.forEach((res) => {
             if (res.status === "fulfilled" && Array.isArray(res.value)) {
-              console.log(`[ScheduleStep REQ ${i+1} VALUE]:`, res.value);
-              // Filter by client code
               const clientAppts = res.value.filter(a => a.cliente && String(a.cliente.cod) === String(cliente.codigo));
               allHist.push(...clientAppts);
             }
           });
 
-          console.log("[ScheduleStep ALL HIST BEFORE FILTER]", allHist);
-
-          // Filtra por 'Atendido' ou 'Aguardando' E que contenham os mesmos serviços que estamos agendando
           const atendidos = allHist.filter((a: any) => {
             if (!a.status || !a.servicos) return false;
             const statusLower = a.status.trim().toLowerCase();
             const hasSameService = a.servicos.some((as: any) => 
-               servicos.some(s => String(s.codServico) === String(as.cod))
+               allServicos.some(s => String(s.codServico) === String(as.cod))
             );
             return (statusLower === "atendido" || statusLower === "aguardando" || statusLower === "em atendimento") && hasSameService;
           });
           
-          console.log("[ScheduleStep ATENDIDOS MESMO SERVICO]", atendidos);
-
           if (atendidos.length > 0) {
             const sortedHist = [...atendidos].sort((a: any, b: any) => {
               const dA = parse(a.dtAgenda, "dd/MM/yyyy", new Date());
               const dB = parse(b.dtAgenda, "dd/MM/yyyy", new Date());
-              // Check if they are the same date, then sort by time
               if (dB.getTime() === dA.getTime()) {
                 return b.hrConsulta.localeCompare(a.hrConsulta);
               }
@@ -107,12 +97,11 @@ export function ScheduleStep({ unit, cliente, plano, servicos, onBooked, onBack 
             });
             const lastApptDate = parse(sortedHist[0].dtAgenda, "dd/MM/yyyy", new Date());
             let suggested = addDays(lastApptDate, 40);
-            // Se cair no domingo, avança para segunda-feira
             if (suggested.getDay() === 0) suggested = addDays(suggested, 1);
             foundDate = suggested;
           }
         } catch (err) {
-          console.error("Erro ao buscar histórico, usando data atual.", err);
+          console.error("Erro ao buscar histórico", err);
         }
 
         if (!mounted) return;
@@ -127,7 +116,7 @@ export function ScheduleStep({ unit, cliente, plano, servicos, onBooked, onBack 
 
     fetchHistory();
     return () => { mounted = false; };
-  }, [unit, cliente.codigo, servicos]);
+  }, [unit, cliente.codigo, allServicos]);
 
   // 2. Load Availability when targetDate changes
   useEffect(() => {
@@ -138,8 +127,6 @@ export function ScheduleStep({ unit, cliente, plano, servicos, onBooked, onBack 
       try {
         setLoadingSlots(true);
         const datesToFetch = [targetDate];
-        // Se for no Sábado (6), também busca a próxima segunda (+2 dias)
-        // A API retorna a semana toda, garantindo assim que puxe a semana seguinte
         if (targetDate.getDay() === 6) {
           datesToFetch.push(addDays(targetDate, 2));
         }
@@ -216,28 +203,16 @@ export function ScheduleStep({ unit, cliente, plano, servicos, onBooked, onBack 
     return () => { mounted = false; };
   }, [targetDate, unit]);
 
-  // Trust the API response per room completely.
-  // Each room (prof) gets its OWN slot list derived solely from ITS OWN horarios.
-  // Never merge across rooms so a free slot in room B doesn't appear as free in room A.
   const availableSlots: { dia: DiaAgenda; prof: { codProf: number; nome: string }; slots: SlotOption[] }[] = [];
 
   for (const dia of diasAgenda) {
     for (const prof of dia.horarios) {
-      // Only show slots from rooms that are salas (filter out avaliação, procedimentos, etc.)
       if (!prof.nome.toLowerCase().includes('sala')) continue;
-      // calcularHorariosDisponiveis already respects gaps (no consecutive slots = not offered).
-      // The API omits occupied slots from each room's horarios array, so we trust it fully.
       const horarios = calcularHorariosDisponiveis(prof.horarios, tempoTotal);
       if (horarios.length === 0) continue;
       const slots: SlotOption[] = horarios.map(h => ({ horario: h, codProf: prof.codProf, nomeProf: prof.nome }));
       availableSlots.push({ dia, prof: { codProf: prof.codProf, nome: prof.nome }, slots });
     }
-  }
-
-  function timeToMinutes(time: string): number {
-    if (!time || !time.includes(":")) return 0;
-    const [h, m] = time.split(':').map(Number);
-    return h * 60 + m;
   }
 
   const handleBook = async () => {
@@ -246,34 +221,44 @@ export function ScheduleStep({ unit, cliente, plano, servicos, onBooked, onBack 
     
     setBooking(true);
     try {
-      const bookingData = {
-        codCli: cliente.codigo,
-        codEstab: 1,
-        prof: { cod_usuario: "", nom_usuario: "" },
-        dtAgd: dia.data,
-        hri: slot.horario,
-        serv: servicos.map((s) => ({
-          codServico: String(s.codServico),
-          tempo: String(s.tempo),
-        })),
-        codPlano: String(plano.codPlano),
-        agSala: true,
-        codSala: slot.codProf,
-        codVendedor: "",
-      };
-      
-      const result = await gravarAgendamento(unit, bookingData) as any;
-      
-      if (result && result.dis === false) {
-        toast.error(result.msg || "Não foi possível realizar o agendamento no horário selecionado.");
-        return;
+      let currentStartTime = slot.horario;
+      let lastResult = null;
+
+      for (const sel of selection) {
+        const planDuration = sel.servicos.reduce((sum, s) => sum + s.tempo, 0);
+        
+        const bookingData = {
+          codCli: cliente.codigo,
+          codEstab: 1,
+          prof: { cod_usuario: "", nom_usuario: "" },
+          dtAgd: dia.data,
+          hri: currentStartTime,
+          serv: sel.servicos.map((s) => ({
+            codServico: String(s.codServico),
+            tempo: String(s.tempo),
+          })),
+          codPlano: String(sel.plano.codPlano),
+          agSala: true,
+          codSala: slot.codProf,
+          codVendedor: "",
+          observacao: "Incluso por Agenda Estética e Laser",
+        };
+
+        const result = await gravarAgendamento(unit, bookingData) as any;
+        
+        if (result && result.dis === false) {
+          throw new Error(result.msg || "Não foi possível realizar o agendamento no horário selecionado.");
+        }
+        
+        lastResult = result;
+        currentStartTime = addMinutesToTime(currentStartTime, planDuration);
       }
       
-      toast.success("Agendamento realizado com sucesso!");
-      onBooked(result, dia.data, slot.horario);
-    } catch (err) {
+      toast.success(selection.length > 1 ? "Todos os agendamentos realizados com sucesso!" : "Agendamento realizado com sucesso!");
+      onBooked(lastResult, dia.data, slot.horario);
+    } catch (err: any) {
       console.error("[AGENDAMENTO] Erro:", err);
-      toast.error("Erro ao realizar agendamento");
+      toast.error(err.message || "Erro ao realizar agendamento");
     } finally {
       setBooking(false);
     }
@@ -286,16 +271,24 @@ export function ScheduleStep({ unit, cliente, plano, servicos, onBooked, onBack 
           <ArrowLeft className="h-4 w-4 mr-1" /> Voltar
         </Button>
         <CardTitle className="font-display text-xl">Escolha o Horário</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Tempo total de serviço: <span className="font-semibold text-foreground">{tempoTotal} min</span>
-        </p>
+        <div className="space-y-1">
+          <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+            <Package className="h-3.5 w-3.5" /> 
+            {selection.length} {selection.length > 1 ? 'pacotes selecionados' : 'pacote selecionado'}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Tempo total estimado: <span className="font-semibold text-foreground">{tempoTotal} min</span>
+          </p>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap gap-1.5 pb-2">
-          {servicos.map((s) => (
-            <span key={s.codServico} className="text-xs px-2 py-0.5 rounded-full bg-accent text-accent-foreground">
-              {s.nome.split(" - ")[0]} ({s.tempo}min)
-            </span>
+          {selection.map((sel) => (
+            sel.servicos.map((s) => (
+              <span key={`${sel.plano.codPlano}-${s.codServico}`} className="text-[10px] px-2 py-0.5 rounded-full bg-accent/50 text-accent-foreground border border-accent/20">
+                {s.nome.split(" - ")[0]} ({s.tempo}min)
+              </span>
+            ))
           ))}
         </div>
 
@@ -307,7 +300,6 @@ export function ScheduleStep({ unit, cliente, plano, servicos, onBooked, onBack 
         ) : (
           <div className="space-y-4 pt-2">
             
-            {/* Date Selector allowed after calculated minimum date */}
             <div className="space-y-2">
               <label className="text-sm font-medium flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-primary" /> Data do Atendimento
@@ -332,7 +324,7 @@ export function ScheduleStep({ unit, cliente, plano, servicos, onBooked, onBack 
                       if (!minAllowedDate) return false;
                       const min = new Date(minAllowedDate);
                       min.setHours(0, 0, 0, 0);
-                      return d < min || d > addDays(min, 90); // Liberar a partir do dia alvo ate +90 dias
+                      return d < min || d > addDays(min, 90);
                     }}
                     initialFocus
                     className="p-3 pointer-events-auto"
@@ -340,7 +332,7 @@ export function ScheduleStep({ unit, cliente, plano, servicos, onBooked, onBack 
                 </PopoverContent>
               </Popover>
               <p className="text-xs text-muted-foreground">
-                De acordo com seu histórico, os agendamentos estão disponíveis a partir desta data recomendada.
+                Disponibilidades filtradas para o tempo total de {tempoTotal} min.
               </p>
             </div>
 
@@ -350,11 +342,10 @@ export function ScheduleStep({ unit, cliente, plano, servicos, onBooked, onBack 
               </div>
             ) : availableSlots.length === 0 ? (
               <p className="text-center text-muted-foreground py-4">
-                Não localizamos horários livres na data prevista. Tente pesquisar outro dia.
+                Não localizamos horários livres para essa duração na data selecionada.
               </p>
             ) : (
               <Accordion type="single" collapsible className="w-full">
-                {/* Group by date first */}
                 {[...new Map(availableSlots.map(s => [s.dia.data, s.dia])).values()].map((dia, groupIdx) => {
                   const roomsForDay = availableSlots.filter(s => s.dia.data === dia.data);
                   const totalSlots = roomsForDay.reduce((acc, r) => acc + r.slots.length, 0);

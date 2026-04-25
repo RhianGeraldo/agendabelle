@@ -14,8 +14,7 @@ const Index = () => {
   const [step, setStep] = useState<Step>("login");
   const [unit, setUnit] = useState("");
   const [cliente, setCliente] = useState<Cliente | null>(null);
-  const [plano, setPlano] = useState<Plano | null>(null);
-  const [servicos, setServicos] = useState<Servico[]>([]);
+  const [selection, setSelection] = useState<{ plano: Plano; servicos: Servico[] }[]>([]);
   const [bookingResult, setBookingResult] = useState<Record<string, unknown> | null>(null);
   const [dataAgendamento, setDataAgendamento] = useState("");
   const [horario, setHorario] = useState("");
@@ -121,9 +120,8 @@ const Index = () => {
     }
   };
 
-  const handlePlanSelected = (p: Plano, s: Servico[]) => {
-    setPlano(p);
-    setServicos(s);
+  const handlePlanSelected = (sel: { plano: Plano; servicos: Servico[] }[]) => {
+    setSelection(sel);
     setStep("schedule");
   };
 
@@ -138,12 +136,13 @@ const Index = () => {
 
   const handleRestart = () => {
     setStep("plans");
-    setPlano(null);
-    setServicos([]);
+    setSelection([]);
     setBookingResult(null);
     setDataAgendamento("");
     setHorario("");
   };
+
+  const totalDuration = selection.reduce((acc, s) => acc + s.servicos.reduce((sum, serv) => sum + serv.tempo, 0), 0);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
@@ -198,12 +197,11 @@ const Index = () => {
             />
           </div>
         )}
-        {step === "schedule" && cliente && plano && (
+        {step === "schedule" && cliente && selection.length > 0 && (
           <ScheduleStep
             unit={unit}
             cliente={cliente}
-            plano={plano}
-            servicos={servicos}
+            selection={selection}
             onBooked={handleBooked}
             onBack={() => handleBack("plans")}
           />
@@ -211,11 +209,11 @@ const Index = () => {
         {step === "confirmation" && (
           <ConfirmationStep
             cliente={cliente!}
-            plano={plano!}
+            selection={selection}
             bookingResult={bookingResult}
             dataAgendamento={dataAgendamento}
             horario={horario}
-            tempoTotal={servicos.reduce((sum, s) => sum + s.tempo, 0)}
+            tempoTotal={totalDuration}
             onRestart={handleRestart}
           />
         )}

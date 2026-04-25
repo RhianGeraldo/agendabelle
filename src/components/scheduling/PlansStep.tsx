@@ -10,14 +10,14 @@ interface PlansStepProps {
   unit: string;
   cliente: Cliente;
   appointments: AgendamentoHistorico[];
-  onPlanSelected: (plano: Plano, servicos: Servico[]) => void;
+  onPlanSelected: (selection: { plano: Plano; servicos: Servico[] }[]) => void;
   onBack: () => void;
 }
 
 export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack }: PlansStepProps) {
   const [planos, setPlanos] = useState<Plano[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectingPlan, setSelectingPlan] = useState<number | null>(null);
+  const [selectingPlan, setSelectingPlan] = useState<number | string | null>(null);
 
   useEffect(() => {
     const fetch = async () => {
@@ -37,9 +37,30 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack 
     setSelectingPlan(plano.codPlano);
     try {
       const servicos = await buscarServicos(unit, plano.codPlano);
-      onPlanSelected(plano, Array.isArray(servicos) ? servicos : []);
+      onPlanSelected([{ plano, servicos: Array.isArray(servicos) ? servicos : [] }]);
     } catch {
       toast.error("Erro ao buscar serviços do plano");
+    } finally {
+      setSelectingPlan(null);
+    }
+  };
+
+  const handleSelectAllPlans = async () => {
+    const plansToBook = planos.filter(p => !isPlanBooked(p));
+    if (plansToBook.length === 0) {
+      toast.info("Não há pacotes disponíveis para agendamento.");
+      return;
+    }
+
+    setSelectingPlan("all");
+    try {
+      const selection = await Promise.all(plansToBook.map(async (plano) => {
+        const servicos = await buscarServicos(unit, plano.codPlano);
+        return { plano, servicos: Array.isArray(servicos) ? servicos : [] };
+      }));
+      onPlanSelected(selection);
+    } catch {
+      toast.error("Erro ao buscar serviços dos planos");
     } finally {
       setSelectingPlan(null);
     }
@@ -56,16 +77,38 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack 
     });
   };
 
+  const unbookedPlans = planos.filter(p => !isPlanBooked(p));
+
   return (
     <Card className="border-0 shadow-lg shadow-primary/5">
       <CardHeader className="pb-2">
         <Button variant="ghost" size="sm" onClick={onBack} className="w-fit -ml-2 mb-2">
           <ArrowLeft className="h-4 w-4 mr-1" /> Voltar
         </Button>
-        <CardTitle className="font-display text-xl">
-          Olá, {cliente.nome.split(" ")[0]}!
-        </CardTitle>
-        <p className="text-sm text-muted-foreground">Selecione o plano que deseja agendar</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="font-display text-xl">
+              Olá, {cliente.nome.split(" ")[0]}!
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">Selecione o plano que deseja agendar</p>
+          </div>
+          {unbookedPlans.length > 1 && (
+            <Button 
+              variant="outline"
+              size="sm" 
+              onClick={handleSelectAllPlans}
+              disabled={selectingPlan !== null}
+              className="border-primary/20 text-primary hover:bg-primary hover:text-white"
+            >
+              {selectingPlan === "all" ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Package className="h-4 w-4 mr-2" />
+              )}
+              Agendar todos os pacotes
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         {loading ? (
