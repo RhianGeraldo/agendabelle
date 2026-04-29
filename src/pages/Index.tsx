@@ -18,9 +18,27 @@ const Index = () => {
   const [bookingResult, setBookingResult] = useState<Record<string, unknown> | null>(null);
   const [dataAgendamento, setDataAgendamento] = useState("");
   const [horario, setHorario] = useState("");
+  const [failedItems, setFailedItems] = useState<{ plano: Plano; servicos: Servico[]; motivo: string }[]>([]);
   
   const [appointments, setAppointments] = useState<AgendamentoHistorico[]>([]);
   const [loadingAppts, setLoadingAppts] = useState(false);
+
+  useEffect(() => {
+    const cachedUnit = localStorage.getItem("agendabelle_unit");
+    const cachedCliente = localStorage.getItem("agendabelle_cliente");
+    
+    if (cachedUnit && cachedCliente) {
+      try {
+        const parsedCliente = JSON.parse(cachedCliente);
+        setUnit(cachedUnit);
+        setCliente(parsedCliente);
+        setStep("plans");
+      } catch (e) {
+        localStorage.removeItem("agendabelle_unit");
+        localStorage.removeItem("agendabelle_cliente");
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (step === "plans" && unit && cliente) {
@@ -80,6 +98,8 @@ const Index = () => {
   }, [step, unit, cliente]);
 
   const handleClienteFound = (u: string, c: Cliente) => {
+    localStorage.setItem("agendabelle_unit", u);
+    localStorage.setItem("agendabelle_cliente", JSON.stringify(c));
     setUnit(u);
     setCliente(c);
     setStep("plans");
@@ -125,14 +145,34 @@ const Index = () => {
     setStep("schedule");
   };
 
-  const handleBooked = (result: Record<string, unknown>, data: string, hr: string) => {
+  const handleBooked = (
+    result: Record<string, unknown>, 
+    data: string, 
+    hr: string, 
+    successfulSelection?: { plano: Plano; servicos: Servico[] }[],
+    failed?: { plano: Plano; servicos: Servico[]; motivo: string }[]
+  ) => {
     setBookingResult(result);
     setDataAgendamento(data);
     setHorario(hr);
+    if (successfulSelection) {
+      setSelection(successfulSelection);
+    }
+    if (failed) {
+      setFailedItems(failed);
+    }
     setStep("confirmation");
   };
 
-  const handleBack = (target: Step) => setStep(target);
+  const handleBack = (target: Step) => {
+    if (target === "login") {
+      localStorage.removeItem("agendabelle_unit");
+      localStorage.removeItem("agendabelle_cliente");
+      setCliente(null);
+      setUnit("");
+    }
+    setStep(target);
+  };
 
   const handleRestart = () => {
     setStep("plans");
@@ -140,6 +180,7 @@ const Index = () => {
     setBookingResult(null);
     setDataAgendamento("");
     setHorario("");
+    setFailedItems([]);
   };
 
   const totalDuration = selection.reduce((acc, s) => acc + s.servicos.reduce((sum, serv) => sum + serv.tempo, 0), 0);
@@ -214,6 +255,7 @@ const Index = () => {
             dataAgendamento={dataAgendamento}
             horario={horario}
             tempoTotal={totalDuration}
+            failedItems={failedItems}
             onRestart={handleRestart}
           />
         )}

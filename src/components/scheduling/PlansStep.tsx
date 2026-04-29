@@ -46,9 +46,20 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack 
   };
 
   const handleSelectAllPlans = async () => {
-    const plansToBook = planos.filter(p => !isPlanBooked(p));
+    let plansToBook = planos.filter(p => !isPlanBooked(p));
     if (plansToBook.length === 0) {
       toast.info("Não há pacotes disponíveis para agendamento.");
+      return;
+    }
+
+    const isDepilacao = (nome: string) => nome.toLowerCase().includes("depila");
+    const isClareamento = (nome: string) => nome.toLowerCase().includes("clareamento");
+
+    const hasDepilacao = plansToBook.some(p => isDepilacao(p.nome) || (p.servicos || []).some(s => isDepilacao(s.nome)));
+    const hasClareamento = plansToBook.some(p => isClareamento(p.nome) || (p.servicos || []).some(s => isClareamento(s.nome)));
+
+    if (hasDepilacao && hasClareamento) {
+      toast.error("Não é possível agendar depilação e clareamento juntos. Os procedimentos exigem um intervalo de 25 dias entre si. Por favor, selecione e agende um pacote por vez.");
       return;
     }
 
@@ -94,11 +105,11 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack 
           </div>
           {unbookedPlans.length > 1 && (
             <Button 
-              variant="outline"
+              variant="default"
               size="sm" 
               onClick={handleSelectAllPlans}
               disabled={selectingPlan !== null}
-              className="border-primary/20 text-primary hover:bg-primary hover:text-white"
+              className="font-semibold"
             >
               {selectingPlan === "all" ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />

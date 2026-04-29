@@ -206,10 +206,11 @@ export function calcularHorariosDisponiveis(
   if (slotsNeeded <= 0 || profHorarios.length === 0) return [];
 
   // Only free slots (l represents 'livre' - free)
-  const freeSlots = profHorarios
-    .filter(h => h.cod === 'l' && h.bloq === 'l')
-    .map(h => h.horario)
-    .sort();
+  const freeSlots = Array.from(new Set(
+    profHorarios
+      .filter(h => h.cod === 'l' && h.bloq === 'l')
+      .map(h => h.horario)
+  )).sort();
 
   const validStartTimes: string[] = [];
 

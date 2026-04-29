@@ -17,7 +17,7 @@ import {
 } from "@/lib/api";
 import { ArrowLeft, Loader2, Calendar, Package } from "lucide-react";
 import { toast } from "sonner";
-import { format, addDays, subMonths, parse } from "date-fns";
+import { format, addDays, subMonths, addMonths, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar as CalendarUI } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -27,7 +27,13 @@ interface ScheduleStepProps {
   unit: string;
   cliente: Cliente;
   selection: { plano: Plano; servicos: Servico[] }[];
-  onBooked: (result: Record<string, unknown>, data: string, horario: string) => void;
+  onBooked: (
+    result: Record<string, unknown>, 
+    data: string, 
+    horario: string, 
+    successfulSelection?: { plano: Plano; servicos: Servico[] }[],
+    failedItems?: { plano: Plano; servicos: Servico[]; motivo: string }[]
+  ) => void;
   onBack: () => void;
 }
 
@@ -62,7 +68,7 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
         let foundDate = hoje;
         try {
           const reqStart = format(subMonths(hoje, 3), "dd/MM/yyyy");
-          const reqEnd = format(hoje, "dd/MM/yyyy");
+          const reqEnd = format(addMonths(hoje, 3), "dd/MM/yyyy");
 
           const results = await Promise.allSettled([
             buscarAgendamentosFinalizados(unit, 1, reqStart, reqEnd),
@@ -77,28 +83,73 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
             }
           });
 
-          const atendidos = allHist.filter((a: any) => {
+          const isDepilacao = (nome: string) => nome.toLowerCase().includes("depila");
+          const isClareamento = (nome: string) => nome.toLowerCase().includes("clareamento");
+          
+          let lastDepilDate: Date | null = null;
+          let lastClareamentoDate: Date | null = null;
+          let lastSameServiceDate: Date | null = null;
+
+          const eventosValidos = allHist.filter((a: any) => {
             if (!a.status || !a.servicos) return false;
             const statusLower = a.status.trim().toLowerCase();
-            const hasSameService = a.servicos.some((as: any) => 
-               allServicos.some(s => String(s.codServico) === String(as.cod))
-            );
-            return (statusLower === "atendido" || statusLower === "aguardando" || statusLower === "em atendimento") && hasSameService;
+            return ["atendido", "aguardando", "em atendimento", "marcado", "confirmado"].includes(statusLower);
           });
-          
-          if (atendidos.length > 0) {
-            const sortedHist = [...atendidos].sort((a: any, b: any) => {
-              const dA = parse(a.dtAgenda, "dd/MM/yyyy", new Date());
-              const dB = parse(b.dtAgenda, "dd/MM/yyyy", new Date());
-              if (dB.getTime() === dA.getTime()) {
-                return b.hrConsulta.localeCompare(a.hrConsulta);
-              }
-              return dB.getTime() - dA.getTime();
-            });
-            const lastApptDate = parse(sortedHist[0].dtAgenda, "dd/MM/yyyy", new Date());
-            let suggested = addDays(lastApptDate, 40);
-            if (suggested.getDay() === 0) suggested = addDays(suggested, 1);
-            foundDate = suggested;
+
+          // Sort descending (most recent first)
+          const sortedHist = [...eventosValidos].sort((a: any, b: any) => {
+            const dA = parse(a.dtAgenda, "dd/MM/yyyy", new Date());
+            const dB = parse(b.dtAgenda, "dd/MM/yyyy", new Date());
+            if (dB.getTime() === dA.getTime()) {
+              return b.hrConsulta.localeCompare(a.hrConsulta);
+            }
+            return dB.getTime() - dA.getTime();
+          });
+
+          const agendandoDepil = allServicos.some(s => isDepilacao(s.nome));
+          const agendandoClareamento = allServicos.some(s => isClareamento(s.nome));
+
+          const latestDepilOrClareamento = sortedHist.find((a: any) => 
+            a.servicos.some((s: any) => isDepilacao(s.nome) || isClareamento(s.nome))
+          );
+
+          const latestSameService = sortedHist.find((a: any) => 
+            a.servicos.some((as: any) => 
+               allServicos.some(s => String(s.codServico) === String(as.cod))
+            )
+          );
+
+          let suggestedMin = new Date(hoje);
+          suggestedMin.setHours(0, 0, 0, 0);
+
+          // Regra Especial de Cruzamento (Depilação e Clareamento se afetam mutuamente)
+          if ((agendandoDepil || agendandoClareamento) && latestDepilOrClareamento) {
+            const dtUltimo = parse(latestDepilOrClareamento.dtAgenda, "dd/MM/yyyy", new Date());
+            const ultimoFoiDepil = latestDepilOrClareamento.servicos.some((s: any) => isDepilacao(s.nome));
+            const ultimoFoiClareamento = latestDepilOrClareamento.servicos.some((s: any) => isClareamento(s.nome));
+
+            let dias = 0;
+            if (ultimoFoiDepil && agendandoDepil) dias = 40;
+            else if (ultimoFoiDepil && agendandoClareamento) dias = 25;
+            else if (ultimoFoiClareamento && agendandoClareamento) dias = 40;
+            else if (ultimoFoiClareamento && agendandoDepil) dias = 25;
+
+            if (dias > 0) {
+              const d = addDays(dtUltimo, dias);
+              if (d > suggestedMin) suggestedMin = d;
+            }
+          }
+
+          // Regra Padrão (Garante o intervalo de 40 dias para o mesmo serviço, sempre)
+          if (latestSameService) {
+            const dtUltimo = parse(latestSameService.dtAgenda, "dd/MM/yyyy", new Date());
+            const d = addDays(dtUltimo, 40);
+            if (d > suggestedMin) suggestedMin = d;
+          }
+
+          if (suggestedMin > hoje) {
+            if (suggestedMin.getDay() === 0) suggestedMin = addDays(suggestedMin, 1);
+            foundDate = suggestedMin;
           }
         } catch (err) {
           console.error("Erro ao buscar histórico", err);
@@ -127,7 +178,11 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
       try {
         setLoadingSlots(true);
         const datesToFetch = [targetDate];
-        if (targetDate.getDay() === 6) {
+        if (targetDate.getDay() === 5) {
+          // Se for Sexta, busca também a Segunda (+3) para puxar a próxima semana
+          datesToFetch.push(addDays(targetDate, 3));
+        } else if (targetDate.getDay() === 6) {
+          // Se for Sábado, busca também Segunda (+2)
           datesToFetch.push(addDays(targetDate, 2));
         }
 
@@ -220,9 +275,11 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
     const { slot, dia } = selectedSlot;
     
     setBooking(true);
+    let lastResult: any = null;
+    let successCount = 0;
+
     try {
       let currentStartTime = slot.horario;
-      let lastResult = null;
 
       for (const sel of selection) {
         const planDuration = sel.servicos.reduce((sum, s) => sum + s.tempo, 0);
@@ -250,15 +307,40 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
           throw new Error(result.msg || "Não foi possível realizar o agendamento no horário selecionado.");
         }
         
+        successCount++;
         lastResult = result;
         currentStartTime = addMinutesToTime(currentStartTime, planDuration);
       }
       
       toast.success(selection.length > 1 ? "Todos os agendamentos realizados com sucesso!" : "Agendamento realizado com sucesso!");
-      onBooked(lastResult, dia.data, slot.horario);
+      onBooked(lastResult, dia.data, slot.horario, selection);
     } catch (err: any) {
       console.error("[AGENDAMENTO] Erro:", err);
-      toast.error(err.message || "Erro ao realizar agendamento");
+      // Se agendou parcialmente e quebrou no meio, não deixa o usuário travado.
+      if (lastResult !== null) {
+         const failedItems = selection.slice(successCount).map(sel => {
+           let amigavel = err.message;
+           const nomePlanoEServicos = (sel.plano.nome + " " + sel.servicos.map(s => s.nome).join(" ")).toLowerCase();
+           
+           if (err.message.includes("dias após")) {
+             if (nomePlanoEServicos.includes("clareamento")) {
+               amigavel = "Só pode ser agendado 25 dias após a realização de depilação.";
+             } else if (nomePlanoEServicos.includes("depila")) {
+               amigavel = "Só pode ser agendado 25 dias após a realização do clareamento.";
+             }
+           }
+           
+           return {
+             plano: sel.plano,
+             servicos: sel.servicos,
+             motivo: amigavel
+           };
+         });
+         toast.warning(`Alguns agendamentos falharam. Mas os anteriores foram confirmados.`);
+         onBooked(lastResult, dia.data, slot.horario, selection.slice(0, successCount), failedItems);
+      } else {
+         toast.error(err.message || "Erro ao realizar agendamento");
+      }
     } finally {
       setBooking(false);
     }

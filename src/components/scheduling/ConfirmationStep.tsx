@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle2 } from "lucide-react";
-import type { Cliente, Plano } from "@/lib/api";
+import { CheckCircle2, AlertTriangle } from "lucide-react";
+import type { Cliente, Plano, Servico } from "@/lib/api";
 
 interface ConfirmationStepProps {
   cliente: Cliente;
@@ -10,10 +10,11 @@ interface ConfirmationStepProps {
   dataAgendamento: string;
   horario: string;
   tempoTotal: number;
+  failedItems?: { plano: Plano; servicos: Servico[]; motivo: string }[];
   onRestart: () => void;
 }
 
-export function ConfirmationStep({ cliente, selection, dataAgendamento, horario, tempoTotal, onRestart }: ConfirmationStepProps) {
+export function ConfirmationStep({ cliente, selection, dataAgendamento, horario, tempoTotal, failedItems, onRestart }: ConfirmationStepProps) {
   return (
     <Card className="border-0 shadow-lg shadow-primary/5">
       <CardHeader className="text-center pb-2">
@@ -60,6 +61,30 @@ export function ConfirmationStep({ cliente, selection, dataAgendamento, horario,
             </p>
           </div>
         </div>
+
+        {failedItems && failedItems.length > 0 && (
+          <div className="border border-orange-200 bg-orange-50/50 rounded-lg p-4 text-left space-y-3">
+            <div className="flex items-center gap-2 text-orange-600 font-semibold text-sm">
+              <AlertTriangle className="h-4 w-4" />
+              Atenção: Alguns pacotes não puderam ser agendados
+            </div>
+            <div className="space-y-2">
+              {failedItems.map((item, idx) => (
+                <div key={idx} className="bg-white/50 p-3 rounded border border-orange-100">
+                  <p className="font-medium text-xs text-orange-800">{item.plano.nome}</p>
+                  <div className="flex flex-wrap gap-1 mt-1 mb-2">
+                    {item.servicos.map((s, si) => (
+                      <span key={si} className="text-[10px] text-orange-700/80">• {s.nome.split(" - ")[0]}</span>
+                    ))}
+                  </div>
+                  <div className="bg-orange-100/50 p-2 rounded-sm border border-orange-200/50">
+                    <p className="text-[10px] text-orange-800 font-medium leading-relaxed">{item.motivo}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <p className="text-sm text-muted-foreground">
           Seus agendamentos foram enviados para o sistema. Você receberá uma confirmação em breve.
         </p>

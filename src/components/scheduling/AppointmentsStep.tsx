@@ -109,16 +109,16 @@ export function AppointmentsStep({ cliente, appointments, loading, onNewBooking,
                                 </p>
                               ))}
                             </div>
-                            <div className="pl-2 border-t pt-2 flex gap-2">
-                              {appt.status === "Marcado" && (
-                                <Button variant="default" size="sm" className="w-full text-xs h-8" onClick={() => onConfirmAppt && onConfirmAppt(appt)}>
-                                  <CheckCircle2 className="h-3 w-3 mr-1" /> Confirmar
-                                </Button>
-                              )}
-                              
+                            <div className="pl-2 flex gap-2">
                               {isReagendavel && (
                                 <Button variant="outline" size="sm" className="w-full text-xs h-8" onClick={() => setRescheduleConfirmAppt(appt)}>
                                   <ArrowRightCircle className="h-3 w-3 mr-1" /> Reagendar
+                                </Button>
+                              )}
+
+                              {appt.status === "Marcado" && (
+                                <Button variant="default" size="sm" className="w-full text-xs h-8" onClick={() => onConfirmAppt && onConfirmAppt(appt)}>
+                                  <CheckCircle2 className="h-3 w-3 mr-1" /> Confirmar
                                 </Button>
                               )}
 
