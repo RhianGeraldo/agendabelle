@@ -12,8 +12,23 @@ interface LoginStepProps {
 }
 
 export function LoginStep({ onClienteFound }: LoginStepProps) {
-  const [unit, setUnit] = useState("");
-  const [cpf, setCpf] = useState("");
+  const [unit, setUnit] = useState(() => localStorage.getItem("agendabelle_unit") || "");
+  const [cpf, setCpf] = useState(() => {
+    const cachedCliente = localStorage.getItem("agendabelle_cliente");
+    if (cachedCliente) {
+      try {
+        const c = JSON.parse(cachedCliente);
+        if (c.cpf) {
+          const digits = c.cpf.replace(/\D/g, "").slice(0, 11);
+          if (digits.length <= 3) return digits;
+          if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+          if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+          return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+        }
+      } catch (e) {}
+    }
+    return "";
+  });
   const [loading, setLoading] = useState(false);
 
   const formatCpf = (value: string) => {

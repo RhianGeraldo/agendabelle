@@ -165,12 +165,7 @@ const Index = () => {
   };
 
   const handleBack = (target: Step) => {
-    if (target === "login") {
-      localStorage.removeItem("agendabelle_unit");
-      localStorage.removeItem("agendabelle_cliente");
-      setCliente(null);
-      setUnit("");
-    }
+    // Mantém o cache e o estado atual para que a tela de login possa ser pré-preenchida
     setStep(target);
   };
 
