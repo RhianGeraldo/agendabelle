@@ -18,6 +18,7 @@ const Index = () => {
   const [bookingResult, setBookingResult] = useState<Record<string, unknown> | null>(null);
   const [dataAgendamento, setDataAgendamento] = useState("");
   const [horario, setHorario] = useState("");
+  const [profAgendado, setProfAgendado] = useState<{ cod: string; nome: string } | null>(null);
   const [failedItems, setFailedItems] = useState<{ plano: Plano; servicos: Servico[]; motivo: string }[]>([]);
   
   const [appointments, setAppointments] = useState<AgendamentoHistorico[]>([]);
@@ -162,11 +163,15 @@ const Index = () => {
     data: string, 
     hr: string, 
     successfulSelection?: { plano: Plano; servicos: Servico[] }[],
-    failed?: { plano: Plano; servicos: Servico[]; motivo: string }[]
+    failed?: { plano: Plano; servicos: Servico[]; motivo: string }[],
+    prof?: { cod: string; nome: string } | null
   ) => {
     setBookingResult(result);
     setDataAgendamento(data);
     setHorario(hr);
+    if (prof) {
+      setProfAgendado(prof);
+    }
     if (successfulSelection) {
       setSelection(successfulSelection);
     }
@@ -187,6 +192,7 @@ const Index = () => {
     setBookingResult(null);
     setDataAgendamento("");
     setHorario("");
+    setProfAgendado(null);
     setFailedItems([]);
   };
 
@@ -263,6 +269,7 @@ const Index = () => {
             dataAgendamento={dataAgendamento}
             horario={horario}
             tempoTotal={totalDuration}
+            prof={profAgendado}
             failedItems={failedItems}
             onRestart={handleRestart}
           />

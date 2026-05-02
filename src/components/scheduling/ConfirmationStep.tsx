@@ -11,10 +11,11 @@ interface ConfirmationStepProps {
   horario: string;
   tempoTotal: number;
   failedItems?: { plano: Plano; servicos: Servico[]; motivo: string }[];
+  prof?: { cod: string; nome: string } | null;
   onRestart: () => void;
 }
 
-export function ConfirmationStep({ cliente, selection, dataAgendamento, horario, tempoTotal, failedItems, onRestart }: ConfirmationStepProps) {
+export function ConfirmationStep({ cliente, selection, dataAgendamento, horario, tempoTotal, prof, failedItems, onRestart }: ConfirmationStepProps) {
   return (
     <Card className="border-0 shadow-lg shadow-primary/5">
       <CardHeader className="text-center pb-2">
@@ -59,6 +60,12 @@ export function ConfirmationStep({ cliente, selection, dataAgendamento, horario,
               <span className="text-muted-foreground">Tempo total:</span>{" "}
               <span className="font-medium">{tempoTotal} min</span>
             </p>
+            {prof && (
+              <p className="flex justify-between border-t pt-2 mt-2">
+                <span className="text-muted-foreground">Profissional:</span>{" "}
+                <span className="font-medium text-primary">{prof.nome}</span>
+              </p>
+            )}
           </div>
         </div>
 

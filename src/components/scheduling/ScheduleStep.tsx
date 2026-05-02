@@ -32,7 +32,8 @@ interface ScheduleStepProps {
     data: string, 
     horario: string, 
     successfulSelection?: { plano: Plano; servicos: Servico[] }[],
-    failedItems?: { plano: Plano; servicos: Servico[]; motivo: string }[]
+    failedItems?: { plano: Plano; servicos: Servico[]; motivo: string }[],
+    prof?: { cod: string; nome: string } | null
   ) => void;
   onBack: () => void;
 }
@@ -323,7 +324,7 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
       }
       
       toast.success(selection.length > 1 ? "Todos os agendamentos realizados com sucesso!" : "Agendamento realizado com sucesso!");
-      onBooked(lastResult, dia.data, slot.horario, selection);
+      onBooked(lastResult, dia.data, slot.horario, selection, undefined, lastProf);
     } catch (err: any) {
       console.error("[AGENDAMENTO] Erro:", err);
       // Se agendou parcialmente e quebrou no meio, não deixa o usuário travado.
@@ -347,7 +348,7 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
            };
          });
          toast.warning(`Alguns agendamentos falharam. Mas os anteriores foram confirmados.`);
-         onBooked(lastResult, dia.data, slot.horario, selection.slice(0, successCount), failedItems);
+         onBooked(lastResult, dia.data, slot.horario, selection.slice(0, successCount), failedItems, lastProf);
       } else {
          toast.error(err.message || "Erro ao realizar agendamento");
       }
