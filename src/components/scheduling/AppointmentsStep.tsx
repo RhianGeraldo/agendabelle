@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ArrowLeft, CalendarX, PlusCircle, ArrowRightCircle, CheckCircle2, LogIn } from "lucide-react";
+import { Loader2, ArrowLeft, CalendarX, PlusCircle, ArrowRightCircle, CheckCircle2, LogIn, User } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -101,13 +101,23 @@ export function AppointmentsStep({ cliente, appointments, loading, onNewBooking,
                                 <p className="font-semibold text-sm">{appt.dtAgenda} às {appt.hrConsulta}</p>
                               </div>
                             </div>
-                            <div className="pl-2 space-y-1 mb-3">
-                              <p className="text-xs font-medium text-primary">Serviços:</p>
-                              {appt.servicos.map((s, i) => (
-                                <p key={i} className="text-xs text-muted-foreground truncate" title={s.nome}>
-                                  • {s.nome}
-                                </p>
-                              ))}
+                            <div className="pl-2 space-y-3 mb-3">
+                              {appt.prof && (
+                                <div className="space-y-1">
+                                  <p className="text-xs font-medium text-primary uppercase tracking-wider flex items-center gap-1.5">
+                                    <User className="h-3 w-3" /> Profissional:
+                                  </p>
+                                  <p className="text-xs font-semibold text-foreground pl-4.5">{appt.prof.nome}</p>
+                                </div>
+                              )}
+                              <div className="space-y-1">
+                                <p className="text-xs font-medium text-primary">Serviços:</p>
+                                {appt.servicos.map((s, i) => (
+                                  <p key={i} className="text-xs text-muted-foreground truncate" title={s.nome}>
+                                    • {s.nome}
+                                  </p>
+                                ))}
+                              </div>
                             </div>
                             <div className="pl-2 flex gap-2">
                               {isReagendavel && (
