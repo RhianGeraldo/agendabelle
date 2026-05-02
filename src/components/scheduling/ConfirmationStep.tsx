@@ -24,7 +24,7 @@ export function ConfirmationStep({ cliente, selection, dataAgendamento, horario,
             <CheckCircle2 className="h-8 w-8 text-success" />
           </div>
         </div>
-        <CardTitle className="font-display text-xl">Agendamento Confirmado!</CardTitle>
+        <CardTitle className="font-sans text-2xl font-bold text-foreground">Agendamento Confirmado!</CardTitle>
       </CardHeader>
       <CardContent className="text-center space-y-4">
         <div className="border border-border/50 rounded-lg p-4 space-y-2 text-sm bg-card text-left">
