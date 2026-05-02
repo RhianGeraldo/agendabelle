@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { buscarPlanos, buscarServicos, type Cliente, type Plano, type Servico, type AgendamentoHistorico } from "@/lib/api";
 import { ArrowLeft, ChevronRight, Loader2, Package, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
@@ -18,6 +20,8 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack 
   const [planos, setPlanos] = useState<Plano[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectingPlan, setSelectingPlan] = useState<number | string | null>(null);
+  const [isMultiSelectOpen, setIsMultiSelectOpen] = useState(false);
+  const [selectedPlanIds, setSelectedPlanIds] = useState<number[]>([]);
 
   useEffect(() => {
     const fetch = async () => {
@@ -45,30 +49,55 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack 
     }
   };
 
-  const handleSelectAllPlans = async () => {
-    let plansToBook = planos.filter(p => !isPlanBooked(p));
-    if (plansToBook.length === 0) {
-      toast.info("Não há pacotes disponíveis para agendamento.");
-      return;
+  const isDepilacao = (nome: string) => nome.toLowerCase().includes("depila");
+  const isClareamento = (nome: string) => nome.toLowerCase().includes("clareamento");
+
+  const hasSelectedDepilacao = selectedPlanIds.some(id => {
+    const p = planos.find(p => p.codPlano === id);
+    return p && (isDepilacao(p.nome) || (p.servicos || []).some(s => isDepilacao(s.nome)));
+  });
+
+  const hasSelectedClareamento = selectedPlanIds.some(id => {
+    const p = planos.find(p => p.codPlano === id);
+    return p && (isClareamento(p.nome) || (p.servicos || []).some(s => isClareamento(s.nome)));
+  });
+
+  const togglePlanSelection = (plano: Plano) => {
+    const isSelected = selectedPlanIds.includes(plano.codPlano);
+    
+    if (!isSelected) {
+      const isPlanDepilacao = isDepilacao(plano.nome) || (plano.servicos || []).some(s => isDepilacao(s.nome));
+      const isPlanClareamento = isClareamento(plano.nome) || (plano.servicos || []).some(s => isClareamento(s.nome));
+
+      if (isPlanDepilacao && hasSelectedClareamento) {
+        toast.error("Não é possível agendar depilação e clareamento juntos. Os procedimentos exigem um intervalo de 25 dias entre si.");
+        return;
+      }
+      if (isPlanClareamento && hasSelectedDepilacao) {
+        toast.error("Não é possível agendar depilação e clareamento juntos. Os procedimentos exigem um intervalo de 25 dias entre si.");
+        return;
+      }
+      
+      setSelectedPlanIds(prev => [...prev, plano.codPlano]);
+    } else {
+      setSelectedPlanIds(prev => prev.filter(id => id !== plano.codPlano));
     }
+  };
 
-    const isDepilacao = (nome: string) => nome.toLowerCase().includes("depila");
-    const isClareamento = (nome: string) => nome.toLowerCase().includes("clareamento");
-
-    const hasDepilacao = plansToBook.some(p => isDepilacao(p.nome) || (p.servicos || []).some(s => isDepilacao(s.nome)));
-    const hasClareamento = plansToBook.some(p => isClareamento(p.nome) || (p.servicos || []).some(s => isClareamento(s.nome)));
-
-    if (hasDepilacao && hasClareamento) {
-      toast.error("Não é possível agendar depilação e clareamento juntos. Os procedimentos exigem um intervalo de 25 dias entre si. Por favor, selecione e agende um pacote por vez.");
+  const handleMultiSelectSubmit = async () => {
+    if (selectedPlanIds.length === 0) {
+      toast.info("Selecione pelo menos um pacote.");
       return;
     }
 
     setSelectingPlan("all");
     try {
-      const selection = await Promise.all(plansToBook.map(async (plano) => {
+      const selectedPlans = planos.filter(p => selectedPlanIds.includes(p.codPlano));
+      const selection = await Promise.all(selectedPlans.map(async (plano) => {
         const servicos = await buscarServicos(unit, plano.codPlano);
         return { plano, servicos: Array.isArray(servicos) ? servicos : [] };
       }));
+      setIsMultiSelectOpen(false);
       onPlanSelected(selection);
     } catch {
       toast.error("Erro ao buscar serviços dos planos");
@@ -91,7 +120,8 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack 
   const unbookedPlans = planos.filter(p => !isPlanBooked(p));
 
   return (
-    <Card className="border-0 shadow-lg shadow-primary/5">
+    <>
+      <Card className="border-0 shadow-lg shadow-primary/5">
       <CardHeader className="pb-2">
         <Button variant="ghost" size="sm" onClick={onBack} className="w-fit -ml-2 mb-2">
           <ArrowLeft className="h-4 w-4 mr-1" /> Voltar
@@ -107,16 +137,15 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack 
             <Button 
               variant="default"
               size="sm" 
-              onClick={handleSelectAllPlans}
+              onClick={() => {
+                setSelectedPlanIds([]);
+                setIsMultiSelectOpen(true);
+              }}
               disabled={selectingPlan !== null}
               className="font-semibold"
             >
-              {selectingPlan === "all" ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <Package className="h-4 w-4 mr-2" />
-              )}
-              Agendar todos os pacotes
+              <Package className="h-4 w-4 mr-2" />
+              Agendar múltiplos pacotes
             </Button>
           )}
         </div>
@@ -186,5 +215,79 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack 
         )}
       </CardContent>
     </Card>
+
+      <Dialog open={isMultiSelectOpen} onOpenChange={setIsMultiSelectOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Selecionar Pacotes</DialogTitle>
+            <DialogDescription>
+              Selecione os pacotes que deseja agendar. Lembre-se: depilação e clareamento não podem ser agendados juntos (intervalo de 25 dias).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+            {unbookedPlans.map(plano => {
+              const isSelected = selectedPlanIds.includes(plano.codPlano);
+              const isPlanDepilacao = isDepilacao(plano.nome) || (plano.servicos || []).some(s => isDepilacao(s.nome));
+              const isPlanClareamento = isClareamento(plano.nome) || (plano.servicos || []).some(s => isClareamento(s.nome));
+              
+              const isDisabled = 
+                (!isSelected && isPlanDepilacao && hasSelectedClareamento) ||
+                (!isSelected && isPlanClareamento && hasSelectedDepilacao);
+
+              return (
+                <div 
+                  key={plano.codPlano}
+                  onClick={() => {
+                    if (isDisabled) {
+                      toast.error("Não é possível agendar depilação e clareamento juntos.");
+                      return;
+                    }
+                    togglePlanSelection(plano);
+                  }}
+                  className={cn(
+                    "flex items-start space-x-3 p-3 rounded-lg border cursor-pointer transition-all",
+                    isSelected ? "border-primary bg-primary/5" : "border-border hover:border-primary/50",
+                    isDisabled && "opacity-50 cursor-not-allowed bg-muted/50"
+                  )}
+                >
+                  <Checkbox 
+                    checked={isSelected}
+                    onCheckedChange={() => {
+                       // handled by parent div click
+                    }}
+                    disabled={isDisabled}
+                    className="mt-1"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm text-foreground">{plano.nome}</p>
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {(plano.servicos || []).map((s) => (
+                        <span key={s.codServico} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                          {s.nome.split(" - ")[0]}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsMultiSelectOpen(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleMultiSelectSubmit}
+              disabled={selectedPlanIds.length === 0 || selectingPlan === "all"}
+            >
+              {selectingPlan === "all" ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
+              Continuar ({selectedPlanIds.length})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

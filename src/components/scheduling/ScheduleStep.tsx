@@ -178,13 +178,10 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
       try {
         setLoadingSlots(true);
         const datesToFetch = [targetDate];
-        if (targetDate.getDay() === 5) {
-          // Se for Sexta, busca também a Segunda (+3) para puxar a próxima semana
-          datesToFetch.push(addDays(targetDate, 3));
-        } else if (targetDate.getDay() === 6) {
-          // Se for Sábado, busca também Segunda (+2)
-          datesToFetch.push(addDays(targetDate, 2));
-        }
+        // Para garantir 7 dias, buscamos a data alvo e também a próxima segunda-feira
+        const dayOfWeek = targetDate.getDay(); // 0 = Dom, 1 = Seg ... 6 = Sáb
+        const daysUntilNextMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
+        datesToFetch.push(addDays(targetDate, daysUntilNextMonday));
 
         const periods = ["manha", "tarde", "noite"];
         const fetchPromises: Promise<any>[] = [];
@@ -244,7 +241,8 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
 
         if (mounted) {
           setAgendamentosDoDia(allAppts);
-          setDiasAgenda(Array.from(mergedMap.values()));
+          // Sempre exibe exatamente 7 dias
+          setDiasAgenda(Array.from(mergedMap.values()).slice(0, 7));
         }
       } catch (err) {
         console.error("Erro ao carregar horários", err);
