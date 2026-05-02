@@ -22,6 +22,7 @@ const Index = () => {
   
   const [appointments, setAppointments] = useState<AgendamentoHistorico[]>([]);
   const [loadingAppts, setLoadingAppts] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     const cachedUnit = localStorage.getItem("agendabelle_unit");
@@ -95,7 +96,11 @@ const Index = () => {
       fetchAll();
       return () => { mounted = false; };
     }
-  }, [step, unit, cliente]);
+  }, [step, unit, cliente, refreshKey]);
+
+  const handleRefresh = () => {
+    setRefreshKey(prev => prev + 1);
+  };
 
   const handleClienteFound = (u: string, c: Cliente) => {
     localStorage.setItem("agendabelle_unit", u);
@@ -220,6 +225,7 @@ const Index = () => {
               appointments={appointments}
               onPlanSelected={handlePlanSelected}
               onBack={() => handleBack("login")}
+              onRefresh={handleRefresh}
             />
             <AppointmentsStep
               unit={unit}

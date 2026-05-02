@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { buscarPlanos, buscarServicos, type Cliente, type Plano, type Servico, type AgendamentoHistorico } from "@/lib/api";
-import { ArrowLeft, ChevronRight, Loader2, Package, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, ChevronRight, Loader2, Package, CheckCircle2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -14,28 +14,36 @@ interface PlansStepProps {
   appointments: AgendamentoHistorico[];
   onPlanSelected: (selection: { plano: Plano; servicos: Servico[] }[]) => void;
   onBack: () => void;
+  onRefresh?: () => void;
 }
 
-export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack }: PlansStepProps) {
+export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack, onRefresh }: PlansStepProps) {
   const [planos, setPlanos] = useState<Plano[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectingPlan, setSelectingPlan] = useState<number | string | null>(null);
   const [isMultiSelectOpen, setIsMultiSelectOpen] = useState(false);
   const [selectedPlanIds, setSelectedPlanIds] = useState<number[]>([]);
 
+  const fetchPlanos = async () => {
+    try {
+      setLoading(true);
+      const data = await buscarPlanos(unit, 1, cliente.codigo);
+      setPlanos(Array.isArray(data) ? data : []);
+    } catch {
+      toast.error("Erro ao buscar planos");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetch = async () => {
-      try {
-        const data = await buscarPlanos(unit, 1, cliente.codigo);
-        setPlanos(Array.isArray(data) ? data : []);
-      } catch {
-        toast.error("Erro ao buscar planos");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetch();
+    fetchPlanos();
   }, [unit, cliente.codigo]);
+
+  const handleRefresh = () => {
+    fetchPlanos();
+    onRefresh?.();
+  };
 
   const handleSelectPlan = async (plano: Plano) => {
     setSelectingPlan(plano.codPlano);
@@ -123,9 +131,20 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack 
     <>
       <Card className="border-0 shadow-lg shadow-primary/5">
       <CardHeader className="pb-2">
-        <Button variant="ghost" size="sm" onClick={onBack} className="w-fit -ml-2 mb-2">
-          <ArrowLeft className="h-4 w-4 mr-1" /> Voltar
-        </Button>
+        <div className="flex items-center justify-between w-full mb-2">
+          <Button variant="ghost" size="sm" onClick={onBack} className="w-fit -ml-2">
+            <ArrowLeft className="h-4 w-4 mr-1" /> Voltar
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={handleRefresh}
+            className="text-primary hover:text-primary hover:bg-primary/10 transition-all"
+            disabled={loading}
+          >
+            <RefreshCw className={cn("h-4 w-4 mr-1", loading && "animate-spin")} /> Atualizar
+          </Button>
+        </div>
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="font-display text-xl">
