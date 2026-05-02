@@ -101,23 +101,23 @@ export function AppointmentsStep({ cliente, appointments, loading, onNewBooking,
                                 <p className="font-semibold text-sm">{appt.dtAgenda} às {appt.hrConsulta}</p>
                               </div>
                             </div>
-                            <div className="pl-2 space-y-3 mb-3">
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-primary">Serviços:</p>
-                                {appt.servicos.map((s, i) => (
-                                  <p key={i} className="text-xs text-muted-foreground truncate" title={s.nome}>
-                                    • {s.nome}
-                                  </p>
-                                ))}
+                            <div className="pl-2 space-y-1 mb-3">
+                              <p className="text-xs font-medium text-primary">Serviços:</p>
+                              {appt.servicos.map((s, i) => (
+                                <p key={i} className="text-xs text-muted-foreground truncate" title={s.nome}>
+                                  • {s.nome}
+                                </p>
+                              ))}
+                            </div>
+                            
+                            <div className="pl-2 pt-3 mt-1 border-t border-border/50 mb-4">
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <User className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Profissional</span>
                               </div>
-                              {appt.prof && (
-                                <div className="pt-1 border-t border-primary/10">
-                                  <p className="text-[10px] font-medium text-primary uppercase tracking-wider flex items-center gap-1.5 mb-1">
-                                    <User className="h-3 w-3" /> Profissional
-                                  </p>
-                                  <p className="text-xs font-semibold text-foreground/80 pl-4.5">{appt.prof.nome}</p>
-                                </div>
-                              )}
+                              <p className="text-xs font-semibold text-foreground uppercase">
+                                {appt.prof?.nome || "Não informado"}
+                              </p>
                             </div>
                             <div className="pl-2 flex gap-2">
                               {isReagendavel && (

@@ -448,10 +448,6 @@ graph TD
 ### 5.6 Domingos
 - Se a data mínima calculada cair em domingo, é automaticamente avançada para segunda-feira
 
-### 5.7 Continuidade de Profissional
-- Ao carregar o histórico para calcular a data de retorno, o sistema identifica a profissional que realizou o último atendimento (priorizando o mesmo serviço ou categoria).
-- Essa profissional é enviada automaticamente no objeto `prof` (campos `cod_usuario` e `nom_usuario`) na gravação do novo agendamento, garantindo que o cliente seja atendido pela mesma pessoa sempre que possível.
-
 ---
 
 ## 6. Interfaces e Tipos de Dados
@@ -546,7 +542,7 @@ Definidas em [api.ts](file:///home/rhiangeraldo/Desenvolvimentos/agendabelle/src
 
 **Componente:** [AppointmentsStep.tsx](file:///home/rhiangeraldo/Desenvolvimentos/agendabelle/src/components/scheduling/AppointmentsStep.tsx)
 
-Este componente é exibido **embutido** na etapa de Planos e mostra os agendamentos do cliente agrupados por status:
+Este componente é exibido **embutido** na etapa de Planos e mostra os agendamentos do cliente agrupados por status. Cada card exibe a data, horário, lista de serviços e o **nome do profissional** responsável.
 
 ### Ações Disponíveis por Status
 
