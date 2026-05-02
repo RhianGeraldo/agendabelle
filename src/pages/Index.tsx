@@ -78,10 +78,17 @@ const Index = () => {
           const sortedArray = Array.from(allAppointments.values()).sort((a, b) => {
             const dateA = parse(a.dtAgenda, "dd/MM/yyyy", new Date());
             const dateB = parse(b.dtAgenda, "dd/MM/yyyy", new Date());
-            if (dateA.getTime() === dateB.getTime()) {
-               return b.hrConsulta.localeCompare(a.hrConsulta);
+            
+            const hojeNoTime = new Date(hoje);
+            hojeNoTime.setHours(0, 0, 0, 0);
+
+            const distA = Math.abs(dateA.getTime() - hojeNoTime.getTime());
+            const distB = Math.abs(dateB.getTime() - hojeNoTime.getTime());
+
+            if (distA === distB) {
+               return a.hrConsulta.localeCompare(b.hrConsulta);
             }
-            return dateB.getTime() - dateA.getTime();
+            return distA - distB;
           });
 
           setAppointments(sortedArray);
