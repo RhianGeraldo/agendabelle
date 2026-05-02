@@ -61,7 +61,7 @@ export function ConfirmationStep({ cliente, selection, dataAgendamento, horario,
               <span className="font-medium">{tempoTotal} min</span>
             </p>
             {prof && (
-              <p className="flex justify-between border-t pt-2 mt-2">
+              <p className="flex justify-between">
                 <span className="text-muted-foreground">Profissional:</span>{" "}
                 <span className="font-medium text-primary">{prof.nome}</span>
               </p>
