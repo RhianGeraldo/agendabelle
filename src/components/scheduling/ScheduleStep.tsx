@@ -93,7 +93,7 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
           const eventosValidos = allHist.filter((a: any) => {
             if (!a.status || !a.servicos) return false;
             const statusLower = a.status.trim().toLowerCase();
-            return ["atendido", "aguardando", "em atendimento", "marcado", "confirmado"].includes(statusLower);
+            return ["atendido", "aguardando", "em andamento", "marcado", "confirmado"].includes(statusLower);
           });
 
           // Sort descending (most recent first)

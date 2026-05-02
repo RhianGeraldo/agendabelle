@@ -91,7 +91,7 @@ export function AppointmentsStep({ cliente, appointments, loading, onNewBooking,
                     <AccordionContent className="pt-1 pb-3 space-y-3">
                       {grouped[status].map((appt) => {
                         const isReagendavel = appt.status === "Marcado" || appt.status === "Confirmado";
-                        const isAtendido = appt.status === "Atendido" || appt.status === "Aguardando" || appt.status === "Em Atendimento";
+                        const isAtendido = appt.status === "Atendido" || appt.status === "Aguardando" || appt.status === "Em Andamento";
 
                         return (
                           <div key={appt.codConsulta} className="border rounded-md p-3 relative bg-background/50 overflow-hidden">
