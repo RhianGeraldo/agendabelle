@@ -15,7 +15,7 @@ import {
   type DiaAgenda,
   type AgendamentoHistorico,
 } from "@/lib/api";
-import { ArrowLeft, Loader2, Calendar, Package } from "lucide-react";
+import { ArrowLeft, Loader2, Calendar, Package, User } from "lucide-react";
 import { toast } from "sonner";
 import { format, addDays, subMonths, addMonths, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -56,6 +56,7 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
   const [booking, setBooking] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ slot: SlotOption; dia: DiaAgenda } | null>(null);
   const [lastProf, setLastProf] = useState<{ cod: string; nome: string } | null>(null);
+  const [pastProfs, setPastProfs] = useState<{ cod: string; nome: string }[]>([]);
 
   const allServicos = useMemo(() => selection.flatMap(s => s.servicos), [selection]);
   const tempoTotal = useMemo(() => allServicos.reduce((sum, s) => sum + s.tempo, 0), [allServicos]);
@@ -162,6 +163,17 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
               nome: referenceAppt.prof.nome
             });
           }
+
+          // Coleta todas as profissionais únicas do histórico (mesmo serviço ou depil/clareamento)
+          const uniqueProfsMap = new Map<string, string>();
+          eventosValidos.forEach((a: any) => {
+            if (a.prof && a.prof.cod && a.prof.nome) {
+              uniqueProfsMap.set(String(a.prof.cod), a.prof.nome);
+            }
+          });
+
+          const uniqueProfs = Array.from(uniqueProfsMap.entries()).map(([cod, nome]) => ({ cod, nome }));
+          setPastProfs(uniqueProfs);
         } catch (err) {
           console.error("Erro ao buscar histórico", err);
         }
@@ -384,6 +396,33 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
             ))
           ))}
         </div>
+        
+        {!loadingInitial && pastProfs.length > 1 && (
+          <div className="pt-2 space-y-3">
+            <label className="text-sm font-medium flex items-center gap-2">
+              <User className="h-4 w-4 text-primary" /> Escolha sua Profissional
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {pastProfs.map((p) => (
+                <Button
+                  key={p.cod}
+                  variant={lastProf?.cod === p.cod ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setLastProf(p)}
+                  className="justify-start text-left h-auto py-2 px-3"
+                >
+                  <div className="truncate">
+                    <p className="text-xs font-semibold truncate">{p.nome}</p>
+                    <p className="text-[10px] opacity-70">Já te atendeu anteriormente</p>
+                  </div>
+                </Button>
+              ))}
+            </div>
+            <p className="text-[10px] text-muted-foreground italic">
+              * Você pode escolher uma profissional com quem já teve experiência.
+            </p>
+          </div>
+        )}
 
         {loadingInitial ? (
           <div className="flex flex-col items-center justify-center py-8 text-muted-foreground space-y-4">
