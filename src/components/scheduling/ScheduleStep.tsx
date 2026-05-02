@@ -54,6 +54,7 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
   const [agendamentosDoDia, setAgendamentosDoDia] = useState<AgendamentoHistorico[]>([]);
   const [booking, setBooking] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ slot: SlotOption; dia: DiaAgenda } | null>(null);
+  const [lastProf, setLastProf] = useState<{ cod: string; nome: string } | null>(null);
 
   const allServicos = useMemo(() => selection.flatMap(s => s.servicos), [selection]);
   const tempoTotal = useMemo(() => allServicos.reduce((sum, s) => sum + s.tempo, 0), [allServicos]);
@@ -150,6 +151,15 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
           if (suggestedMin > hoje) {
             if (suggestedMin.getDay() === 0) suggestedMin = addDays(suggestedMin, 1);
             foundDate = suggestedMin;
+          }
+
+          // Busca a profissional do último atendimento (mesmo serviço ou depil/clareamento)
+          const referenceAppt = latestSameService || latestDepilOrClareamento || sortedHist[0];
+          if (referenceAppt && referenceAppt.prof) {
+            setLastProf({
+              cod: String(referenceAppt.prof.cod),
+              nome: referenceAppt.prof.nome
+            });
           }
         } catch (err) {
           console.error("Erro ao buscar histórico", err);
@@ -285,7 +295,9 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
         const bookingData = {
           codCli: cliente.codigo,
           codEstab: 1,
-          prof: { cod_usuario: "", nom_usuario: "" },
+          prof: lastProf 
+            ? { cod_usuario: lastProf.cod, nom_usuario: lastProf.nome }
+            : { cod_usuario: "", nom_usuario: "" },
           dtAgd: dia.data,
           hri: currentStartTime,
           serv: sel.servicos.map((s) => ({
