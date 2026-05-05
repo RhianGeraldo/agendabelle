@@ -169,9 +169,7 @@ const Index = () => {
     setBookingResult(result);
     setDataAgendamento(data);
     setHorario(hr);
-    if (prof) {
-      setProfAgendado(prof);
-    }
+    setProfAgendado(prof || null);
     if (successfulSelection) {
       setSelection(successfulSelection);
     }

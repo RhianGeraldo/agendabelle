@@ -55,8 +55,6 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
   const [agendamentosDoDia, setAgendamentosDoDia] = useState<AgendamentoHistorico[]>([]);
   const [booking, setBooking] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ slot: SlotOption; dia: DiaAgenda } | null>(null);
-  const [lastProf, setLastProf] = useState<{ cod: string; nome: string } | null>(null);
-  const [pastProfs, setPastProfs] = useState<{ cod: string; nome: string }[]>([]);
 
   const allServicos = useMemo(() => selection.flatMap(s => s.servicos), [selection]);
   const tempoTotal = useMemo(() => allServicos.reduce((sum, s) => sum + s.tempo, 0), [allServicos]);
@@ -155,25 +153,6 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
             foundDate = suggestedMin;
           }
 
-          // Busca a profissional do último atendimento (mesmo serviço ou depil/clareamento)
-          const referenceAppt = latestSameService || latestDepilOrClareamento || sortedHist[0];
-          if (referenceAppt && referenceAppt.prof) {
-            setLastProf({
-              cod: String(referenceAppt.prof.cod),
-              nome: referenceAppt.prof.nome
-            });
-          }
-
-          // Coleta todas as profissionais únicas do histórico (mesmo serviço ou depil/clareamento)
-          const uniqueProfsMap = new Map<string, string>();
-          eventosValidos.forEach((a: any) => {
-            if (a.prof && a.prof.cod && a.prof.nome) {
-              uniqueProfsMap.set(String(a.prof.cod), a.prof.nome);
-            }
-          });
-
-          const uniqueProfs = Array.from(uniqueProfsMap.entries()).map(([cod, nome]) => ({ cod, nome }));
-          setPastProfs(uniqueProfs);
         } catch (err) {
           console.error("Erro ao buscar histórico", err);
         }
@@ -308,9 +287,7 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
         const bookingData = {
           codCli: cliente.codigo,
           codEstab: 1,
-          prof: lastProf 
-            ? { cod_usuario: lastProf.cod, nom_usuario: lastProf.nome }
-            : { cod_usuario: "", nom_usuario: "" },
+          prof: { cod_usuario: "", nom_usuario: "" },
           dtAgd: dia.data,
           hri: currentStartTime,
           serv: sel.servicos.map((s) => ({
@@ -336,7 +313,7 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
       }
       
       toast.success(selection.length > 1 ? "Todos os agendamentos realizados com sucesso!" : "Agendamento realizado com sucesso!");
-      onBooked(lastResult, dia.data, slot.horario, selection, undefined, lastProf);
+      onBooked(lastResult, dia.data, slot.horario, selection, undefined, null);
     } catch (err: any) {
       console.error("[AGENDAMENTO] Erro:", err);
       // Se agendou parcialmente e quebrou no meio, não deixa o usuário travado.
@@ -360,7 +337,7 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
            };
          });
          toast.warning(`Alguns agendamentos falharam. Mas os anteriores foram confirmados.`);
-         onBooked(lastResult, dia.data, slot.horario, selection.slice(0, successCount), failedItems, lastProf);
+         onBooked(lastResult, dia.data, slot.horario, selection.slice(0, successCount), failedItems, null);
       } else {
          toast.error(err.message || "Erro ao realizar agendamento");
       }
@@ -397,32 +374,6 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
           ))}
         </div>
         
-        {!loadingInitial && pastProfs.length > 1 && (
-          <div className="pt-2 space-y-3">
-            <label className="text-sm font-medium flex items-center gap-2">
-              <User className="h-4 w-4 text-primary" /> Escolha sua Profissional
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {pastProfs.map((p) => (
-                <Button
-                  key={p.cod}
-                  variant={lastProf?.cod === p.cod ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setLastProf(p)}
-                  className="justify-start text-left h-auto py-2 px-3"
-                >
-                  <div className="truncate">
-                    <p className="text-xs font-semibold truncate">{p.nome}</p>
-                    <p className="text-[10px] opacity-70">Já te atendeu anteriormente</p>
-                  </div>
-                </Button>
-              ))}
-            </div>
-            <p className="text-[10px] text-muted-foreground italic">
-              * Você pode escolher uma profissional com quem já teve experiência.
-            </p>
-          </div>
-        )}
 
         {loadingInitial ? (
           <div className="flex flex-col items-center justify-center py-8 text-muted-foreground space-y-4">
