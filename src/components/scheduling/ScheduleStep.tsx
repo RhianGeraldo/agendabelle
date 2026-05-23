@@ -86,6 +86,11 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
 
           const isDepilacao = (nome: string) => nome.toLowerCase().includes("depila");
           const isClareamento = (nome: string) => nome.toLowerCase().includes("clareamento");
+          const isFacialArea = (nome: string) => {
+            const n = nome.toLowerCase();
+            return (n.includes("barba") || n.includes("buço") || n.includes("buco") || n.includes("facial")) && !n.includes("rejuvenescimento");
+          };
+          const isRejuvenescimento = (nome: string) => nome.toLowerCase().includes("rejuvenescimento");
           
           let lastDepilDate: Date | null = null;
           let lastClareamentoDate: Date | null = null;
@@ -109,9 +114,15 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
 
           const agendandoDepil = allServicos.some(s => isDepilacao(s.nome));
           const agendandoClareamento = allServicos.some(s => isClareamento(s.nome));
+          const agendandoFacialArea = allServicos.some(s => isFacialArea(s.nome));
+          const agendandoRejuvenescimento = allServicos.some(s => isRejuvenescimento(s.nome));
 
           const latestDepilOrClareamento = sortedHist.find((a: any) => 
             a.servicos.some((s: any) => isDepilacao(s.nome) || isClareamento(s.nome))
+          );
+
+          const latestFacialOrRejuve = sortedHist.find((a: any) => 
+            a.servicos.some((s: any) => isFacialArea(s.nome) || isRejuvenescimento(s.nome))
           );
 
           const latestSameService = sortedHist.find((a: any) => 
@@ -134,6 +145,22 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
             else if (ultimoFoiDepil && agendandoClareamento) dias = 25;
             else if (ultimoFoiClareamento && agendandoClareamento) dias = 40;
             else if (ultimoFoiClareamento && agendandoDepil) dias = 25;
+
+            if (dias > 0) {
+              const d = addDays(dtUltimo, dias);
+              if (d > suggestedMin) suggestedMin = d;
+            }
+          }
+
+          // Regra Especial de Cruzamento (Área Facial vs Rejuvenescimento Facial - 45 dias)
+          if ((agendandoFacialArea || agendandoRejuvenescimento) && latestFacialOrRejuve) {
+            const dtUltimo = parse(latestFacialOrRejuve.dtAgenda, "dd/MM/yyyy", new Date());
+            const ultimoFoiFacialArea = latestFacialOrRejuve.servicos.some((s: any) => isFacialArea(s.nome));
+            const ultimoFoiRejuvenescimento = latestFacialOrRejuve.servicos.some((s: any) => isRejuvenescimento(s.nome));
+
+            let dias = 0;
+            if (ultimoFoiFacialArea && agendandoRejuvenescimento) dias = 45;
+            else if (ultimoFoiRejuvenescimento && agendandoFacialArea) dias = 45;
 
             if (dias > 0) {
               const d = addDays(dtUltimo, dias);
@@ -327,6 +354,10 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
                amigavel = "Só pode ser agendado 25 dias após a realização de depilação.";
              } else if (nomePlanoEServicos.includes("depila")) {
                amigavel = "Só pode ser agendado 25 dias após a realização do clareamento.";
+             } else if (nomePlanoEServicos.includes("rejuvenescimento")) {
+               amigavel = "Só pode ser agendado 45 dias após a realização de depilação facial (barba/buço/facial).";
+             } else if (nomePlanoEServicos.includes("barba") || nomePlanoEServicos.includes("buço") || nomePlanoEServicos.includes("buco") || nomePlanoEServicos.includes("facial")) {
+               amigavel = "Só pode ser agendado 45 dias após a realização de rejuvenescimento facial.";
              }
            }
            

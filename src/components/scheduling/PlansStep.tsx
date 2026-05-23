@@ -59,6 +59,11 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
 
   const isDepilacao = (nome: string) => nome.toLowerCase().includes("depila");
   const isClareamento = (nome: string) => nome.toLowerCase().includes("clareamento");
+  const isFacialArea = (nome: string) => {
+    const n = nome.toLowerCase();
+    return (n.includes("barba") || n.includes("buço") || n.includes("buco") || n.includes("facial")) && !n.includes("rejuvenescimento");
+  };
+  const isRejuvenescimento = (nome: string) => nome.toLowerCase().includes("rejuvenescimento");
 
   const hasSelectedDepilacao = selectedPlanIds.some(id => {
     const p = planos.find(p => p.codPlano === id);
@@ -70,12 +75,24 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
     return p && (isClareamento(p.nome) || (p.servicos || []).some(s => isClareamento(s.nome)));
   });
 
+  const hasSelectedFacialArea = selectedPlanIds.some(id => {
+    const p = planos.find(p => p.codPlano === id);
+    return p && (isFacialArea(p.nome) || (p.servicos || []).some(s => isFacialArea(s.nome)));
+  });
+
+  const hasSelectedRejuvenescimento = selectedPlanIds.some(id => {
+    const p = planos.find(p => p.codPlano === id);
+    return p && (isRejuvenescimento(p.nome) || (p.servicos || []).some(s => isRejuvenescimento(s.nome)));
+  });
+
   const togglePlanSelection = (plano: Plano) => {
     const isSelected = selectedPlanIds.includes(plano.codPlano);
     
     if (!isSelected) {
       const isPlanDepilacao = isDepilacao(plano.nome) || (plano.servicos || []).some(s => isDepilacao(s.nome));
       const isPlanClareamento = isClareamento(plano.nome) || (plano.servicos || []).some(s => isClareamento(s.nome));
+      const isPlanFacialArea = isFacialArea(plano.nome) || (plano.servicos || []).some(s => isFacialArea(s.nome));
+      const isPlanRejuvenescimento = isRejuvenescimento(plano.nome) || (plano.servicos || []).some(s => isRejuvenescimento(s.nome));
 
       if (isPlanDepilacao && hasSelectedClareamento) {
         toast.error("Não é possível agendar depilação e clareamento juntos. Os procedimentos exigem um intervalo de 25 dias entre si.");
@@ -83,6 +100,14 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
       }
       if (isPlanClareamento && hasSelectedDepilacao) {
         toast.error("Não é possível agendar depilação e clareamento juntos. Os procedimentos exigem um intervalo de 25 dias entre si.");
+        return;
+      }
+      if (isPlanFacialArea && hasSelectedRejuvenescimento) {
+        toast.error("Não é possível agendar depilação facial (barba/buço/facial) e rejuvenescimento facial juntos. Os procedimentos exigem um intervalo de 45 dias entre si.");
+        return;
+      }
+      if (isPlanRejuvenescimento && hasSelectedFacialArea) {
+        toast.error("Não é possível agendar depilação facial (barba/buço/facial) e rejuvenescimento facial juntos. Os procedimentos exigem um intervalo de 45 dias entre si.");
         return;
       }
       
@@ -240,7 +265,7 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
           <DialogHeader>
             <DialogTitle>Selecionar Pacotes</DialogTitle>
             <DialogDescription>
-              Selecione os pacotes que deseja agendar. Lembre-se: depilação e clareamento não podem ser agendados juntos (intervalo de 25 dias).
+              Selecione os pacotes que deseja agendar. Lembre-se: depilação e clareamento não podem ser agendados juntos (intervalo de 25 dias), e procedimentos faciais (barba/buço/facial) não podem ser agendados junto com rejuvenescimento facial (intervalo de 45 dias).
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-3 max-h-[60vh] overflow-y-auto pr-2">
@@ -248,17 +273,25 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
               const isSelected = selectedPlanIds.includes(plano.codPlano);
               const isPlanDepilacao = isDepilacao(plano.nome) || (plano.servicos || []).some(s => isDepilacao(s.nome));
               const isPlanClareamento = isClareamento(plano.nome) || (plano.servicos || []).some(s => isClareamento(s.nome));
+              const isPlanFacialArea = isFacialArea(plano.nome) || (plano.servicos || []).some(s => isFacialArea(s.nome));
+              const isPlanRejuvenescimento = isRejuvenescimento(plano.nome) || (plano.servicos || []).some(s => isRejuvenescimento(s.nome));
               
               const isDisabled = 
                 (!isSelected && isPlanDepilacao && hasSelectedClareamento) ||
-                (!isSelected && isPlanClareamento && hasSelectedDepilacao);
+                (!isSelected && isPlanClareamento && hasSelectedDepilacao) ||
+                (!isSelected && isPlanFacialArea && hasSelectedRejuvenescimento) ||
+                (!isSelected && isPlanRejuvenescimento && hasSelectedFacialArea);
 
               return (
                 <div 
                   key={plano.codPlano}
                   onClick={() => {
                     if (isDisabled) {
-                      toast.error("Não é possível agendar depilação e clareamento juntos.");
+                      if ((isPlanFacialArea && hasSelectedRejuvenescimento) || (isPlanRejuvenescimento && hasSelectedFacialArea)) {
+                        toast.error("Não é possível agendar depilação facial e rejuvenescimento juntos.");
+                      } else {
+                        toast.error("Não é possível agendar depilação e clareamento juntos.");
+                      }
                       return;
                     }
                     togglePlanSelection(plano);
