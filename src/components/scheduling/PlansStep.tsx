@@ -170,9 +170,9 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
             <RefreshCw className={cn("h-4 w-4 mr-1", loading && "animate-spin")} /> Atualizar
           </Button>
         </div>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="font-display text-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <CardTitle className="font-display text-xl truncate">
               Olá, {cliente.nome.split(" ")[0]}!
             </CardTitle>
             <p className="text-sm text-muted-foreground">Selecione o plano que deseja agendar</p>
@@ -186,7 +186,7 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
                 setIsMultiSelectOpen(true);
               }}
               disabled={selectingPlan !== null}
-              className="font-semibold"
+              className="font-semibold w-full sm:w-auto flex items-center justify-center shrink-0"
             >
               <Package className="h-4 w-4 mr-2" />
               Agendar múltiplos pacotes

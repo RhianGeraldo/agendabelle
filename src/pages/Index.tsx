@@ -4,7 +4,20 @@ import { PlansStep } from "@/components/scheduling/PlansStep";
 import { ScheduleStep } from "@/components/scheduling/ScheduleStep";
 import { ConfirmationStep } from "@/components/scheduling/ConfirmationStep";
 import { AppointmentsStep } from "@/components/scheduling/AppointmentsStep";
-import { buscarHistoricoAgenda, buscarAgendamentosAbertos, buscarAgendamentosFinalizados, alterarStatusAgendamento, type Cliente, type Plano, type Servico, type AgendamentoHistorico } from "@/lib/api";
+import { PaymentsStep } from "@/components/scheduling/PaymentsStep";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+  buscarHistoricoAgenda, 
+  buscarAgendamentosAbertos, 
+  buscarAgendamentosFinalizados, 
+  alterarStatusAgendamento, 
+  buscarVendasElosgate, 
+  type Cliente, 
+  type Plano, 
+  type Servico, 
+  type AgendamentoHistorico, 
+  type VendaElosgate 
+} from "@/lib/api";
 import { format, subDays, addDays, subMonths, addMonths, parse } from "date-fns";
 import { toast } from "sonner";
 
@@ -23,6 +36,8 @@ const Index = () => {
   
   const [appointments, setAppointments] = useState<AgendamentoHistorico[]>([]);
   const [loadingAppts, setLoadingAppts] = useState(false);
+  const [vendas, setVendas] = useState<VendaElosgate[]>([]);
+  const [loadingFinanceiro, setLoadingFinanceiro] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -48,6 +63,7 @@ const Index = () => {
       const fetchAll = async () => {
         try {
           setLoadingAppts(true);
+          setLoadingFinanceiro(true);
           const hoje = new Date();
           
           const pastStart = format(subMonths(hoje, 2), "dd/MM/yyyy");
@@ -56,16 +72,31 @@ const Index = () => {
           const futureStart = format(hoje, "dd/MM/yyyy");
           const futureEnd = format(addMonths(hoje, 2), "dd/MM/yyyy");
 
-          const results = await Promise.allSettled([
-            buscarAgendamentosAbertos(unit, 1, pastStart, pastEnd),
-            buscarAgendamentosAbertos(unit, 1, futureStart, futureEnd),
-            buscarAgendamentosFinalizados(unit, 1, pastStart, pastEnd),
-            buscarAgendamentosFinalizados(unit, 1, futureStart, futureEnd)
+          const [results, elosgateRes] = await Promise.all([
+            Promise.allSettled([
+              buscarAgendamentosAbertos(unit, 1, pastStart, pastEnd),
+              buscarAgendamentosAbertos(unit, 1, futureStart, futureEnd),
+              buscarAgendamentosFinalizados(unit, 1, pastStart, pastEnd),
+              buscarAgendamentosFinalizados(unit, 1, futureStart, futureEnd)
+            ]),
+            Promise.allSettled([
+              buscarVendasElosgate(unit, cliente.cpf)
+            ])
           ]);
 
           if (!mounted) return;
 
+          // Parse Elosgate sales
+          if (elosgateRes[0].status === "fulfilled") {
+            setVendas(elosgateRes[0].value || []);
+          } else {
+            console.error("Erro ao carregar dados do Elosgate:", elosgateRes[0].reason);
+            setVendas([]);
+          }
+
+          // Parse Belle Software appointments
           const allAppointments = new Map<number, AgendamentoHistorico>();
+          
           results.forEach(res => {
             if (res.status === "fulfilled" && Array.isArray(res.value)) {
               res.value.forEach((a: any) => {
@@ -95,9 +126,12 @@ const Index = () => {
           setAppointments(sortedArray);
         } catch (err) {
           console.error(err);
-          if (mounted) toast.error("Não foi possível carregar os agendamentos.");
+          if (mounted) toast.error("Não foi possível carregar os dados.");
         } finally {
-          if (mounted) setLoadingAppts(false);
+          if (mounted) {
+            setLoadingAppts(false);
+            setLoadingFinanceiro(false);
+          }
         }
       };
 
@@ -197,7 +231,7 @@ const Index = () => {
   const totalDuration = selection.reduce((acc, s) => acc + s.servicos.reduce((sum, serv) => sum + serv.tempo, 0), 0);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen flex flex-col items-center justify-start p-4 py-8 md:py-12">
       <div className="w-full max-w-lg">
         <div className="flex flex-col items-center mb-8">
           <img 
@@ -230,24 +264,71 @@ const Index = () => {
         {step === "login" && <LoginStep onClienteFound={handleClienteFound} />}
         {step === "plans" && cliente && (
           <div className="space-y-6">
-            <PlansStep
-              unit={unit}
-              cliente={cliente}
-              appointments={appointments}
-              onPlanSelected={handlePlanSelected}
-              onBack={() => handleBack("login")}
-              onRefresh={handleRefresh}
-            />
-            <AppointmentsStep
-              unit={unit}
-              cliente={cliente}
-              appointments={appointments}
-              loading={loadingAppts}
-              onReschedule={handleReschedule}
-              onConfirmAppt={handleConfirmAppt}
-              onCheckIn={handleCheckIn}
-              isEmbedded={true}
-            />
+            {vendas.length > 0 ? (
+              <Tabs defaultValue="agendamentos" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 mb-6">
+                  <TabsTrigger value="agendamentos" className="font-semibold">
+                    Agendamentos
+                  </TabsTrigger>
+                  <TabsTrigger value="pagamentos" className="font-semibold">
+                    Pagamentos
+                  </TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="agendamentos" className="space-y-6 mt-0">
+                  <PlansStep
+                    unit={unit}
+                    cliente={cliente}
+                    appointments={appointments}
+                    onPlanSelected={handlePlanSelected}
+                    onBack={() => handleBack("login")}
+                    onRefresh={handleRefresh}
+                  />
+                  <AppointmentsStep
+                    unit={unit}
+                    cliente={cliente}
+                    appointments={appointments}
+                    loading={loadingAppts}
+                    onReschedule={handleReschedule}
+                    onConfirmAppt={handleConfirmAppt}
+                    onCheckIn={handleCheckIn}
+                    isEmbedded={true}
+                  />
+                </TabsContent>
+                
+                <TabsContent value="pagamentos" className="mt-0">
+                  <PaymentsStep 
+                    vendas={vendas} 
+                    loading={loadingFinanceiro} 
+                    unit={unit} 
+                    onBack={() => handleBack("login")}
+                    onRefresh={handleRefresh}
+                    refreshing={loadingFinanceiro}
+                  />
+                </TabsContent>
+              </Tabs>
+            ) : (
+              <div className="space-y-6">
+                <PlansStep
+                  unit={unit}
+                  cliente={cliente}
+                  appointments={appointments}
+                  onPlanSelected={handlePlanSelected}
+                  onBack={() => handleBack("login")}
+                  onRefresh={handleRefresh}
+                />
+                <AppointmentsStep
+                  unit={unit}
+                  cliente={cliente}
+                  appointments={appointments}
+                  loading={loadingAppts}
+                  onReschedule={handleReschedule}
+                  onConfirmAppt={handleConfirmAppt}
+                  onCheckIn={handleCheckIn}
+                  isEmbedded={true}
+                />
+              </div>
+            )}
           </div>
         )}
         {step === "schedule" && cliente && selection.length > 0 && (

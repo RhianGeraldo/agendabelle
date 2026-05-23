@@ -247,3 +247,118 @@ export function addMinutesToTime(time: string, minutes: number): string {
   const total = timeToMinutes(time) + minutes;
   return minutesToTime(total);
 }
+
+export interface ParcelaElosgate {
+  ID: string;
+  Numero: number;
+  Valor: number;
+  Vencimento: string;
+  Pagamento?: string | null;
+  MeioPagamento?: string;
+  StatusString?: string;
+  [key: string]: any;
+}
+
+export interface MeioPagamentoElosgate {
+  ID: string;
+  Descricao: string;
+  NumeroParcelas: number;
+  Valor: number;
+  StatusString?: string;
+  Parcelas?: ParcelaElosgate[];
+  [key: string]: any;
+}
+
+export interface VendaElosgate {
+  ID: string;
+  Numero: string;
+  ReferenciaVenda: string;
+  DataCriacao: string;
+  DataAlteracao: string;
+  StatusString: string;
+  MeiosPagamento?: MeioPagamentoElosgate[];
+  [key: string]: any;
+}
+
+const FINANCIAL_UNIT_KEYS: Record<string, string> = {
+  mantena: "A3F7FF3375B1EBE13DB1CF09749D1A4949D53BD9EECD4DDCD4877D38CF1BF7F8",
+  "sao-mateus": "DBE42F861DE477D9BE335EB5E16897E15D412E1DA1E7C65550E9C441D8AD9A6C",
+  linhares: "1B5D672062BD4D7B23657A141812A3018A24D8755E08570BEF9556FA9FA71CCF",
+  aracruz: "E94FF7C18A2C2F752385B8DD5530B2BE164C409591B4981E26BDB4D62E2537A7",
+  serra: "3083D7AE32D10D9940CD2DD42DB82B0859FC08FAE586F903391F8378F8F564B3",
+};
+
+export async function buscarVendasElosgate(unit: string, cpf: string): Promise<VendaElosgate[]> {
+  const apiKey = FINANCIAL_UNIT_KEYS[unit];
+  if (!apiKey) throw new Error("Unidade inválida para financeiro");
+  
+  const cleanCpf = cpf.replace(/\D/g, "");
+  console.log(`[FINANCIAL GET]: Fetching sales for unit=${unit}, cleanCpf=${cleanCpf}`);
+  
+  const res = await fetch("https://svc3.elosgate.com.br/generated/gatewaysvc.svc/json/ListarDadosVendas", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      APIKey: apiKey,
+      Documento: cleanCpf,
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Erro ao buscar dados financeiros: ${res.status}`);
+  }
+
+  const data = await res.json();
+  console.log(`[FINANCIAL RESPONSE]: Received sales data for unit=${unit}`);
+  
+  if (data && Array.isArray(data.Vendas)) {
+    return data.Vendas;
+  }
+  
+  if (data && Array.isArray(data)) {
+    return data;
+  }
+  
+  return [];
+}
+
+export async function obterURLVenda(unit: string, numeroVenda: string): Promise<string | null> {
+  const apiKey = FINANCIAL_UNIT_KEYS[unit];
+  if (!apiKey) {
+    console.error(`[OBTER URL VENDA]: API Key not found for unit: ${unit}`);
+    return null;
+  }
+
+  try {
+    const res = await fetch("https://svc3.elosgate.com.br/generated/gatewaysvc.svc/json/ObterURLVenda", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        APIKey: apiKey,
+        NumeroVenda: numeroVenda,
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+
+    const data = await res.json();
+    const resultObj = Array.isArray(data) ? data[0] : data;
+    
+    if (resultObj && resultObj.Errors && resultObj.Errors.length > 0) {
+      console.error("[OBTER URL VENDA] API Errors:", resultObj.Errors);
+      return null;
+    }
+
+    return resultObj?.URL || null;
+  } catch (error) {
+    console.error("[OBTER URL VENDA] Error fetching payment link:", error);
+    return null;
+  }
+}
+
