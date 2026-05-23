@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, ArrowLeft, CalendarX, PlusCircle, ArrowRightCircle, CheckCircle2, LogIn, User } from "lucide-react";
@@ -30,6 +31,7 @@ interface AppointmentsStepProps {
 
 export function AppointmentsStep({ cliente, appointments, loading, onNewBooking, onConfirmAppt, onCheckIn, onReschedule, onBack, isEmbedded }: AppointmentsStepProps) {
   const [rescheduleConfirmAppt, setRescheduleConfirmAppt] = useState<AgendamentoHistorico | null>(null);
+  const hojeStr = format(new Date(), "dd/MM/yyyy");
 
   const grouped = appointments.reduce((acc, appt) => {
     const status = appt.status || "Outros";
@@ -90,7 +92,7 @@ export function AppointmentsStep({ cliente, appointments, loading, onNewBooking,
                     </AccordionTrigger>
                     <AccordionContent className="pt-1 pb-3 space-y-3">
                       {grouped[status].map((appt) => {
-                        const isReagendavel = appt.status === "Marcado" || appt.status === "Confirmado";
+                        const isReagendavel = (appt.status === "Marcado" || appt.status === "Confirmado") && appt.dtAgenda !== hojeStr;
                         const isAtendido = appt.status === "Atendido" || appt.status === "Aguardando" || appt.status === "Em Andamento";
 
                         return (
