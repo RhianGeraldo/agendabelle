@@ -454,7 +454,7 @@ export function PaymentsStep({
                   )}
 
                   {/* Payment Button with Dynamic Link Generation Fallback */}
-                  {(status === "Pendente" || status === "Atrasada") && (
+                  {(status === "Pendente" || status === "Atrasada" || status === "Regular") && (
                     <div className="pl-2 mt-3">
                       {link ? (
                         <Button 
