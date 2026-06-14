@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +30,22 @@ export function LoginStep({ onClienteFound }: LoginStepProps) {
     return "";
   });
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const unitParam = params.get("unidade");
+    const cpfParam = params.get("cpf");
+
+    if (unitParam) setUnit(unitParam);
+    if (cpfParam) {
+      const digits = cpfParam.replace(/\D/g, "").slice(0, 11);
+      let formatted = digits;
+      if (digits.length > 9) formatted = `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+      else if (digits.length > 6) formatted = `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+      else if (digits.length > 3) formatted = `${digits.slice(0, 3)}.${digits.slice(3)}`;
+      setCpf(formatted);
+    }
+  }, []);
 
   const formatCpf = (value: string) => {
     const digits = value.replace(/\D/g, "").slice(0, 11);

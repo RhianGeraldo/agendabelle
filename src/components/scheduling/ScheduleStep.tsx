@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import {
   buscarDisponibilidade,
   gravarAgendamento,
+  gravarAgendamentoSemServico,
   calcularHorariosDisponiveis,
   addMinutesToTime,
   buscarAgendamentosAbertos,
@@ -55,6 +57,7 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
   const [agendamentosDoDia, setAgendamentosDoDia] = useState<AgendamentoHistorico[]>([]);
   const [booking, setBooking] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ slot: SlotOption; dia: DiaAgenda } | null>(null);
+  const [clientObservation, setClientObservation] = useState("");
 
   const allServicos = useMemo(() => selection.flatMap(s => s.servicos), [selection]);
   const tempoTotal = useMemo(() => allServicos.reduce((sum, s) => sum + s.tempo, 0), [allServicos]);
@@ -295,10 +298,22 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
   }, [targetDate, unit]);
 
   const availableSlots: { dia: DiaAgenda; prof: { codProf: number; nome: string }; slots: SlotOption[] }[] = [];
+  const isAvaliacaoOnly = selection.length === 1 && selection[0].plano.codPlano === -1;
 
   for (const dia of diasAgenda) {
     for (const prof of dia.horarios) {
-      if (!prof.nome.toLowerCase().includes('sala')) continue;
+      const profName = prof.nome.toLowerCase();
+      const isRoom = profName.includes('sala');
+      const isEvaluationRoom = profName.includes('avaliação') || profName.includes('avaliacao');
+
+      // Se for apenas avaliação, exige que o nome contenha avaliação (pode ou não ter "sala" explícito)
+      // Se for serviço comum, exige que seja sala
+      if (isAvaliacaoOnly) {
+        if (!isEvaluationRoom) continue;
+      } else {
+        if (!isRoom) continue;
+      }
+
       const horarios = calcularHorariosDisponiveis(prof.horarios, tempoTotal);
       if (horarios.length === 0) continue;
       const slots: SlotOption[] = horarios.map(h => ({ horario: h, codProf: prof.codProf, nomeProf: prof.nome }));
@@ -320,24 +335,38 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
       for (const sel of selection) {
         const planDuration = sel.servicos.reduce((sum, s) => sum + s.tempo, 0);
         
-        const bookingData = {
+        const finalObs = clientObservation.trim()
+          ? `${clientObservation.trim()} - Incluso por Agenda Estética e Laser`
+          : "Incluso por Agenda Estética e Laser";
+
+        const bookingData: any = {
           codCli: cliente.codigo,
           codEstab: 1,
           prof: { cod_usuario: "", nom_usuario: "" },
           dtAgd: dia.data,
           hri: currentStartTime,
-          serv: sel.servicos.map((s) => ({
-            codServico: String(s.codServico),
-            tempo: String(s.tempo),
-          })),
-          codPlano: String(sel.plano.codPlano),
           agSala: true,
           codSala: slot.codProf,
           codVendedor: "",
-          observacao: "Incluso por Agenda Estética e Laser",
+          observacao: finalObs,
         };
 
-        const result = await gravarAgendamento(unit, bookingData) as any;
+        let result: any;
+
+        if (sel.plano.codPlano !== -1) {
+          bookingData.serv = sel.servicos.map((s) => ({
+            codServico: String(s.codServico),
+            tempo: String(s.tempo),
+          }));
+          bookingData.codPlano = String(sel.plano.codPlano);
+          result = await gravarAgendamento(unit, bookingData);
+        } else {
+          // Payload específico para Avaliação
+          bookingData.tempo = sel.servicos[0]?.tempo || 20;
+          bookingData.tipoConsulta = "Avaliação";
+          bookingData.temPreferencia = false;
+          result = await gravarAgendamentoSemServico(unit, bookingData);
+        }
         
         if (result && result.dis === false) {
           throw new Error(result.msg || "Não foi possível realizar o agendamento no horário selecionado.");
@@ -535,7 +564,18 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
         )}
       </CardContent>
 
-      <div className="p-4 border-t bg-muted/20">
+      <div className="p-4 border-t bg-muted/20 space-y-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-muted-foreground">
+            Observação (Opcional)
+          </label>
+          <Input 
+            placeholder="Alguma observação para a clínica?" 
+            value={clientObservation}
+            onChange={(e) => setClientObservation(e.target.value)}
+            disabled={booking || !selectedSlot}
+          />
+        </div>
         <Button
           size="lg"
           className="w-full font-semibold"

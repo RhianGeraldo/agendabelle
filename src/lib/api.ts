@@ -95,6 +95,26 @@ export async function buscarCliente(unit: string, cpf: string) {
   return apiGet(`${BASE_URL}/cliente/listar?codEstab=1&cpf=${cleanCpf}`, getToken(unit));
 }
 
+export async function gravarCliente(unit: string, dados: {
+  nome: string;
+  celular: string;
+  email: string;
+  cpf: string;
+}) {
+  const body = {
+    nome: dados.nome,
+    celular: dados.celular.replace(/\D/g, ''),
+    email: dados.email,
+    cpf: dados.cpf.replace(/\D/g, ''),
+    observacao: "Cadastro via AgendaBelle (Avaliação)",
+    tpOrigem: "Campanha",
+    codOrigem: "1",
+    codEstab: 1
+  };
+
+  return apiPost(`${BASE_URL}/cliente/gravar`, getToken(unit), body);
+}
+
 export async function buscarPlanos(unit: string, codEstab: number, codCliente: number) {
   return apiGet(`${BASE_URL}/cliente/planos?codEstab=${codEstab}&codCliente=${codCliente}`, getToken(unit));
 }
@@ -121,6 +141,10 @@ export async function buscarDisponibilidade(unit: string, codEstab: number, dtAg
 
 export async function gravarAgendamento(unit: string, bookingData: Record<string, unknown>) {
   return apiPost(`${BASE_URL}/agenda/gravar`, getToken(unit), bookingData);
+}
+
+export async function gravarAgendamentoSemServico(unit: string, bookingData: Record<string, unknown>) {
+  return apiPost(`${BASE_URL}/agenda/gravar_sem_servico`, getToken(unit), bookingData);
 }
 
 export async function alterarStatusAgendamento(unit: string, codConsulta: number, status: string) {
