@@ -96,7 +96,7 @@ export function ConfirmationStep({ cliente, selection, dataAgendamento, horario,
           Seus agendamentos foram enviados para o sistema. Você receberá uma confirmação em breve.
         </p>
         <Button onClick={onRestart} variant="outline" className="w-full">
-          Novo Agendamento
+          Ir para Início
         </Button>
       </CardContent>
     </Card>

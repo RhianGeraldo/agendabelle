@@ -2,7 +2,7 @@ import { useState } from "react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ArrowLeft, CalendarX, PlusCircle, ArrowRightCircle, CheckCircle2, LogIn, User } from "lucide-react";
+import { Loader2, ArrowLeft, CalendarX, PlusCircle, ArrowRightCircle, CheckCircle2, LogIn, User, Info } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -76,7 +76,7 @@ export function AppointmentsStep({ cliente, appointments, loading, onNewBooking,
             {appointments.length === 0 ? (
               <div className="text-center py-6 bg-muted/20 rounded-lg border">
                 <CalendarX className="h-10 w-10 text-muted-foreground/50 mx-auto mb-2" />
-                <p className="text-muted-foreground">Nenhum agendamento encontrado nos últimos 90 dias.</p>
+                <p className="text-muted-foreground">Nenhum agendamento encontrado nos últimos 120 dias.</p>
               </div>
             ) : (
               <Accordion type="multiple" className="w-full space-y-3" defaultValue={["Marcado", "Confirmado"]}>
@@ -104,22 +104,43 @@ export function AppointmentsStep({ cliente, appointments, loading, onNewBooking,
                               </div>
                             </div>
                             <div className="pl-2 space-y-1 mb-3">
-                              <p className="text-xs font-medium text-primary">Serviços:</p>
-                              {appt.servicos.map((s, i) => (
+                              <p className="text-xs font-medium text-primary">
+                                {appt.tipo === "Avaliação" ? "Avaliação:" : "Serviços:"}
+                              </p>
+                              {appt.tipo !== "Avaliação" && appt.servicos.map((s, i) => (
                                 <p key={i} className="text-xs text-muted-foreground truncate" title={s.nome}>
-                                  • {s.nome}
+                                  • {s.nome || "Serviço não informado"}
                                 </p>
                               ))}
+                              {appt.tipo === "Avaliação" && (
+                                <p className="text-xs text-muted-foreground truncate">
+                                  • Avaliação
+                                </p>
+                              )}
                             </div>
                             
-                            <div className="pl-2 pt-3 mt-1 border-t border-border/50 mb-4">
-                              <div className="flex items-center gap-1.5 mb-1">
-                                <User className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Profissional</span>
+                            <div className="pl-2 pt-3 mt-1 border-t border-border/50 mb-4 flex flex-col gap-3">
+                              <div>
+                                <div className="flex items-center gap-1.5 mb-1">
+                                  <User className="h-3 w-3 text-muted-foreground" />
+                                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Profissional</span>
+                                </div>
+                                <p className="text-xs font-semibold text-foreground uppercase">
+                                  {appt.prof?.nome || "Não informado"}
+                                </p>
                               </div>
-                              <p className="text-xs font-semibold text-foreground uppercase">
-                                {appt.prof?.nome || "Não informado"}
-                              </p>
+
+                              {appt.observacao && (
+                                <div>
+                                  <div className="flex items-center gap-1.5 mb-1">
+                                    <Info className="h-3 w-3 text-muted-foreground" />
+                                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Observação</span>
+                                  </div>
+                                  <p className="text-xs font-medium text-muted-foreground uppercase">
+                                    {appt.observacao}
+                                  </p>
+                                </div>
+                              )}
                             </div>
                             <div className="pl-2 flex gap-2">
                               {isReagendavel && (

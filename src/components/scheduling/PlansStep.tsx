@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -45,11 +45,42 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
     onRefresh?.();
   };
 
+  const bookedAreas = useMemo(() => {
+    const names = new Set<string>();
+    const codes = new Set<string>();
+    appointments.forEach(appt => {
+      if (appt.status === "Marcado" || appt.status === "Confirmado") {
+        (appt.servicos || []).forEach(hs => {
+          if (hs.nome) {
+            names.add(hs.nome.split(" - ")[0].trim().toLowerCase());
+          }
+          if (hs.cod) {
+            codes.add(String(hs.cod).trim());
+          }
+        });
+      }
+    });
+    return { names, codes };
+  }, [appointments]);
+
   const handleSelectPlan = async (plano: Plano) => {
     setSelectingPlan(plano.codPlano);
     try {
-      const servicos = await buscarServicos(unit, plano.codPlano);
-      onPlanSelected([{ plano, servicos: Array.isArray(servicos) ? servicos : [] }]);
+      const servicosRaw = await buscarServicos(unit, plano.codPlano);
+      const servicos = Array.isArray(servicosRaw) ? servicosRaw : [];
+      
+      const filteredServicos = servicos.filter(s => {
+        const key = s.nome.split(" - ")[0].trim().toLowerCase();
+        const code = String(s.codServico).trim();
+        return !(bookedAreas.names.has(key) || bookedAreas.codes.has(code));
+      });
+
+      if (filteredServicos.length === 0) {
+        toast.info("Todos os serviços deste plano já estão agendados.");
+        return;
+      }
+
+      onPlanSelected([{ plano, servicos: filteredServicos }]);
     } catch {
       toast.error("Erro ao buscar serviços do plano");
     } finally {
@@ -126,12 +157,40 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
     setSelectingPlan("all");
     try {
       const selectedPlans = planos.filter(p => selectedPlanIds.includes(p.codPlano));
-      const selection = await Promise.all(selectedPlans.map(async (plano) => {
+      let selectionRaw = await Promise.all(selectedPlans.map(async (plano) => {
         const servicos = await buscarServicos(unit, plano.codPlano);
         return { plano, servicos: Array.isArray(servicos) ? servicos : [] };
       }));
+
+      selectionRaw.sort((a, b) => b.servicos.length - a.servicos.length);
+
+      const seenServices = new Set<string>();
+      const deduplicatedSelection: { plano: Plano; servicos: Servico[] }[] = [];
+
+      for (const item of selectionRaw) {
+        const filteredServicos = item.servicos.filter(s => {
+          const key = s.nome.split(" - ")[0].trim().toLowerCase();
+          const code = String(s.codServico).trim();
+          if (seenServices.has(key) || bookedAreas.names.has(key) || bookedAreas.codes.has(code)) {
+            return false;
+          }
+          seenServices.add(key);
+          return true;
+        });
+
+        if (filteredServicos.length > 0) {
+          deduplicatedSelection.push({ ...item, servicos: filteredServicos });
+        }
+      }
+
+      if (deduplicatedSelection.length === 0) {
+        toast.info("Não há serviços válidos para agendar.");
+        setSelectingPlan(null);
+        return;
+      }
+
       setIsMultiSelectOpen(false);
-      onPlanSelected(selection);
+      onPlanSelected(deduplicatedSelection);
     } catch {
       toast.error("Erro ao buscar serviços dos planos");
     } finally {
@@ -140,13 +199,11 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
   };
 
   const isPlanBooked = (plano: Plano) => {
-    return appointments.some(appt => {
-      // Confirma que não está checando lixo
-      if (appt.status !== "Marcado" && appt.status !== "Confirmado") return false;
-      // Checa os serviços do appt se tem match com serviços do plano
-      return (appt.servicos || []).some(hs => 
-        (plano.servicos || []).some(ps => String(ps.codServico) === String(hs.cod))
-      );
+    if (!plano.servicos || plano.servicos.length === 0) return false;
+    return plano.servicos.every(s => {
+      const area = s.nome.split(" - ")[0].trim().toLowerCase();
+      const code = String(s.codServico).trim();
+      return bookedAreas.names.has(area) || bookedAreas.codes.has(code);
     });
   };
 

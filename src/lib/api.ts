@@ -115,7 +115,7 @@ export async function buscarServicos(unit: string, codPlano: number) {
   return apiGet(`${BASE_URL}/servico/listar?codPlano=${codPlano}`, getToken(unit));
 }
 
-export async function buscarDisponibilidade(unit: string, codEstab: number, dtAgenda: string, periodo: string) {
+export async function buscarDisponibilidade(unit: string, codEstab: number, dtAgenda: string, periodo: string = 'todos') {
   return apiGet(`${BASE_URL}/agenda/disponibilidade?codEstab=${codEstab}&dtAgenda=${dtAgenda}&periodo=${periodo}&tpAgd=s`, getToken(unit));
 }
 

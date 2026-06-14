@@ -66,18 +66,28 @@ const Index = () => {
           setLoadingFinanceiro(true);
           const hoje = new Date();
           
-          const pastStart = format(subMonths(hoje, 2), "dd/MM/yyyy");
-          const pastEnd = format(hoje, "dd/MM/yyyy");
+          const pastStart1 = format(subMonths(hoje, 4), "dd/MM/yyyy");
+          const pastEnd1 = format(subMonths(hoje, 2), "dd/MM/yyyy");
           
-          const futureStart = format(hoje, "dd/MM/yyyy");
-          const futureEnd = format(addMonths(hoje, 2), "dd/MM/yyyy");
+          const pastStart2 = format(subMonths(hoje, 2), "dd/MM/yyyy");
+          const pastEnd2 = format(hoje, "dd/MM/yyyy");
+          
+          const futureStart1 = format(hoje, "dd/MM/yyyy");
+          const futureEnd1 = format(addMonths(hoje, 2), "dd/MM/yyyy");
+          
+          const futureStart2 = format(addMonths(hoje, 2), "dd/MM/yyyy");
+          const futureEnd2 = format(addMonths(hoje, 4), "dd/MM/yyyy");
 
           const [results, elosgateRes] = await Promise.all([
             Promise.allSettled([
-              buscarAgendamentosAbertos(unit, 1, pastStart, pastEnd),
-              buscarAgendamentosAbertos(unit, 1, futureStart, futureEnd),
-              buscarAgendamentosFinalizados(unit, 1, pastStart, pastEnd),
-              buscarAgendamentosFinalizados(unit, 1, futureStart, futureEnd)
+              buscarAgendamentosAbertos(unit, 1, pastStart1, pastEnd1),
+              buscarAgendamentosAbertos(unit, 1, pastStart2, pastEnd2),
+              buscarAgendamentosAbertos(unit, 1, futureStart1, futureEnd1),
+              buscarAgendamentosAbertos(unit, 1, futureStart2, futureEnd2),
+              buscarAgendamentosFinalizados(unit, 1, pastStart1, pastEnd1),
+              buscarAgendamentosFinalizados(unit, 1, pastStart2, pastEnd2),
+              buscarAgendamentosFinalizados(unit, 1, futureStart1, futureEnd1),
+              buscarAgendamentosFinalizados(unit, 1, futureStart2, futureEnd2)
             ]),
             Promise.allSettled([
               buscarVendasElosgate(unit, cliente.cpf)
@@ -154,10 +164,17 @@ const Index = () => {
 
   const handleReschedule = async (appt: AgendamentoHistorico) => {
     try {
-      await alterarStatusAgendamento(unit, appt.codConsulta, "Cancelado");
-      toast.success("O agendamento anterior foi cancelado. Sinta-se livre para agendar um novo horário!");
-      // Filter out the appt so the user can select the plan again immediately
-      setAppointments(prev => prev.filter(a => a.codConsulta !== appt.codConsulta));
+      const hojeStr = format(new Date(), "dd/MM/yyyy");
+      const sameDayAppts = appointments.filter(a => 
+        a.dtAgenda === appt.dtAgenda && 
+        (a.status === "Marcado" || (a.status === "Confirmado" && a.dtAgenda !== hojeStr))
+      );
+      
+      await Promise.all(sameDayAppts.map(a => alterarStatusAgendamento(unit, a.codConsulta, "Cancelado")));
+      toast.success(sameDayAppts.length > 1 ? "Os agendamentos foram desmarcados." : "O agendamento anterior foi cancelado. Sinta-se livre para agendar um novo horário!");
+      
+      const idsToRemove = sameDayAppts.map(a => a.codConsulta);
+      setAppointments(prev => prev.filter(a => !idsToRemove.includes(a.codConsulta)));
     } catch (err) {
       toast.error("Erro ao cancelar agendamento.");
       console.error(err);
@@ -166,10 +183,12 @@ const Index = () => {
 
   const handleConfirmAppt = async (appt: AgendamentoHistorico) => {
     try {
-      await alterarStatusAgendamento(unit, appt.codConsulta, "Confirmado");
-      toast.success("Agendamento confirmado com sucesso!");
-      // Update local state to reflect the change
-      setAppointments(prev => prev.map(a => a.codConsulta === appt.codConsulta ? { ...a, status: "Confirmado" } : a));
+      const sameDayAppts = appointments.filter(a => a.dtAgenda === appt.dtAgenda && a.status === "Marcado");
+      await Promise.all(sameDayAppts.map(a => alterarStatusAgendamento(unit, a.codConsulta, "Confirmado")));
+      toast.success(sameDayAppts.length > 1 ? "Agendamentos confirmados com sucesso!" : "Agendamento confirmado com sucesso!");
+      
+      const idsToUpdate = sameDayAppts.map(a => a.codConsulta);
+      setAppointments(prev => prev.map(a => idsToUpdate.includes(a.codConsulta) ? { ...a, status: "Confirmado" } : a));
     } catch (err) {
       toast.error("Erro ao confirmar agendamento.");
       console.error(err);
@@ -178,9 +197,12 @@ const Index = () => {
 
   const handleCheckIn = async (appt: AgendamentoHistorico) => {
     try {
-      await alterarStatusAgendamento(unit, appt.codConsulta, "Aguardando");
-      toast.success("Check-in realizado com sucesso!");
-      setAppointments(prev => prev.map(a => a.codConsulta === appt.codConsulta ? { ...a, status: "Aguardando" } : a));
+      const sameDayAppts = appointments.filter(a => a.dtAgenda === appt.dtAgenda && a.status === "Confirmado");
+      await Promise.all(sameDayAppts.map(a => alterarStatusAgendamento(unit, a.codConsulta, "Aguardando")));
+      toast.success(sameDayAppts.length > 1 ? "Check-in dos agendamentos realizado com sucesso!" : "Check-in realizado com sucesso!");
+      
+      const idsToUpdate = sameDayAppts.map(a => a.codConsulta);
+      setAppointments(prev => prev.map(a => idsToUpdate.includes(a.codConsulta) ? { ...a, status: "Aguardando" } : a));
     } catch (err) {
       toast.error("Erro ao realizar check-in.");
       console.error(err);

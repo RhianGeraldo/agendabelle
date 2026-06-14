@@ -68,12 +68,25 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
         const hoje = new Date();
         let foundDate = hoje;
         try {
-          const reqStart = format(subMonths(hoje, 3), "dd/MM/yyyy");
-          const reqEnd = format(addMonths(hoje, 3), "dd/MM/yyyy");
+          const pastStart1 = format(subMonths(hoje, 4), "dd/MM/yyyy");
+          const pastEnd1 = format(subMonths(hoje, 2), "dd/MM/yyyy");
+          const pastStart2 = format(subMonths(hoje, 2), "dd/MM/yyyy");
+          const pastEnd2 = format(hoje, "dd/MM/yyyy");
+          
+          const futureStart1 = format(hoje, "dd/MM/yyyy");
+          const futureEnd1 = format(addMonths(hoje, 2), "dd/MM/yyyy");
+          const futureStart2 = format(addMonths(hoje, 2), "dd/MM/yyyy");
+          const futureEnd2 = format(addMonths(hoje, 4), "dd/MM/yyyy");
 
           const results = await Promise.allSettled([
-            buscarAgendamentosFinalizados(unit, 1, reqStart, reqEnd),
-            buscarAgendamentosAbertos(unit, 1, reqStart, reqEnd)
+            buscarAgendamentosFinalizados(unit, 1, pastStart1, pastEnd1),
+            buscarAgendamentosFinalizados(unit, 1, pastStart2, pastEnd2),
+            buscarAgendamentosFinalizados(unit, 1, futureStart1, futureEnd1),
+            buscarAgendamentosFinalizados(unit, 1, futureStart2, futureEnd2),
+            buscarAgendamentosAbertos(unit, 1, pastStart1, pastEnd1),
+            buscarAgendamentosAbertos(unit, 1, pastStart2, pastEnd2),
+            buscarAgendamentosAbertos(unit, 1, futureStart1, futureEnd1),
+            buscarAgendamentosAbertos(unit, 1, futureStart2, futureEnd2)
           ]);
 
           const allHist: any[] = [];
@@ -84,13 +97,14 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
             }
           });
 
-          const isDepilacao = (nome: string) => nome.toLowerCase().includes("depila");
-          const isClareamento = (nome: string) => nome.toLowerCase().includes("clareamento");
+          const isDepilacao = (nome: string) => !!nome && nome.toLowerCase().includes("depila");
+          const isClareamento = (nome: string) => !!nome && nome.toLowerCase().includes("clareamento");
           const isFacialArea = (nome: string) => {
+            if (!nome) return false;
             const n = nome.toLowerCase();
             return (n.includes("barba") || n.includes("buço") || n.includes("buco") || n.includes("facial")) && !n.includes("rejuvenescimento");
           };
-          const isRejuvenescimento = (nome: string) => nome.toLowerCase().includes("rejuvenescimento");
+          const isRejuvenescimento = (nome: string) => !!nome && nome.toLowerCase().includes("rejuvenescimento");
           
           let lastDepilDate: Date | null = null;
           let lastClareamentoDate: Date | null = null;
@@ -127,7 +141,7 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
 
           const latestSameService = sortedHist.find((a: any) => 
             a.servicos.some((as: any) => 
-               allServicos.some(s => String(s.codServico) === String(as.cod))
+               allServicos.some(s => String(s.codServico) === String(as.cod || "").trim())
             )
           );
 
@@ -141,9 +155,7 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
             const ultimoFoiClareamento = latestDepilOrClareamento.servicos.some((s: any) => isClareamento(s.nome));
 
             let dias = 0;
-            if (ultimoFoiDepil && agendandoDepil) dias = 40;
-            else if (ultimoFoiDepil && agendandoClareamento) dias = 25;
-            else if (ultimoFoiClareamento && agendandoClareamento) dias = 40;
+            if (ultimoFoiDepil && agendandoClareamento) dias = 25;
             else if (ultimoFoiClareamento && agendandoDepil) dias = 25;
 
             if (dias > 0) {
@@ -212,15 +224,12 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
         const daysUntilNextMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
         datesToFetch.push(addDays(targetDate, daysUntilNextMonday));
 
-        const periods = ["manha", "tarde", "noite"];
         const fetchPromises: Promise<any>[] = [];
         const apptPromises: Promise<any>[] = [];
         
         datesToFetch.forEach(dateObj => {
           const dtStr = format(dateObj, "dd/MM/yyyy");
-          periods.forEach(p => {
-            fetchPromises.push(buscarDisponibilidade(unit, 1, dtStr, p));
-          });
+          fetchPromises.push(buscarDisponibilidade(unit, 1, dtStr));
           apptPromises.push(buscarAgendamentosAbertos(unit, 1, dtStr, dtStr));
         });
 
