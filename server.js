@@ -32,8 +32,10 @@ const FINANCIAL_UNIT_KEYS = {
 const BELLE_BASE_URL = 'https://app.bellesoftware.com.br/api/release/controller/IntegracaoExterna/v1.0';
 const ELOSGATE_BASE_URL = 'https://svc3.elosgate.com.br/generated/gatewaysvc.svc/json';
 
+const apiRouter = express.Router();
+
 // Proxy for Belle
-app.all('/api/belle/:unit/*splat', async (req, res) => {
+apiRouter.all('/belle/:unit/*splat', async (req, res) => {
   const { unit } = req.params;
   const token = UNIT_TOKENS[unit];
   if (!token) {
@@ -76,7 +78,7 @@ app.all('/api/belle/:unit/*splat', async (req, res) => {
 });
 
 // Proxy for Elosgate
-app.all('/api/elosgate/:unit/*splat', async (req, res) => {
+apiRouter.all('/elosgate/:unit/*splat', async (req, res) => {
   const { unit } = req.params;
   const apiKey = FINANCIAL_UNIT_KEYS[unit];
   if (!apiKey) {
@@ -110,6 +112,10 @@ app.all('/api/elosgate/:unit/*splat', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Mount router on both /api and / in case Nginx strips the prefix
+app.use('/api', apiRouter);
+app.use('/', apiRouter);
 
 // Serve static frontend files
 app.use(express.static(path.join(__dirname, 'dist')));
