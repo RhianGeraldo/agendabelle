@@ -11,27 +11,11 @@ export const UNITS: Unit[] = [
   { id: 'serra', label: 'Serra' },
 ];
 
-const UNIT_TOKENS: Record<string, string> = {
-  mantena: '452166ad16be9184c85db73a97832d55',
-  'sao-mateus': '47ad4592f0438b5f4ba37c05e2ffc7e9',
-  linhares: '76683f1105194b9f9544cb9f1b356a5b',
-  aracruz: 'd4fd49c6235cbe09ea4cb0827f51f575',
-  serra: '8471d37f86e5c2d2cb213d8e092f2c64',
-};
-
-const BASE_URL = 'https://app.bellesoftware.com.br/api/release/controller/IntegracaoExterna/v1.0';
-
-function getToken(unit: string): string {
-  const token = UNIT_TOKENS[unit];
-  if (!token) throw new Error('Unidade inválida');
-  return token;
-}
-
-async function apiGet(url: string, token: string) {
+async function apiGet(url: string) {
   console.log(`[API GET]: ${url}`);
   const res = await fetch(url, {
     method: 'GET',
-    headers: { Authorization: token },
+    headers: { 'Content-Type': 'application/json' },
   });
   console.log(`[API GET RESPONSE STATUS]: ${res.status}`);
   if (!res.ok) {
@@ -45,11 +29,10 @@ async function apiGet(url: string, token: string) {
   return res.json();
 }
 
-async function apiPost(url: string, token: string, body: unknown) {
+async function apiPost(url: string, body: unknown) {
   const res = await fetch(url, {
     method: 'POST',
     headers: {
-      Authorization: token,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
@@ -65,11 +48,10 @@ async function apiPost(url: string, token: string, body: unknown) {
   return res.json();
 }
 
-async function apiPut(url: string, token: string, body: unknown) {
+async function apiPut(url: string, body: unknown) {
   const res = await fetch(url, {
     method: 'PUT',
     headers: {
-      Authorization: token,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
@@ -92,7 +74,7 @@ async function apiPut(url: string, token: string, body: unknown) {
 export async function buscarCliente(unit: string, cpf: string) {
   const cleanCpf = cpf.replace(/\D/g, '');
   if (cleanCpf.length < 11) throw new Error('CPF inválido');
-  return apiGet(`${BASE_URL}/cliente/listar?codEstab=1&cpf=${cleanCpf}`, getToken(unit));
+  return apiGet(`/api/belle/${unit}/cliente/listar?codEstab=1&cpf=${cleanCpf}`);
 }
 
 export async function gravarCliente(unit: string, dados: {
@@ -112,43 +94,43 @@ export async function gravarCliente(unit: string, dados: {
     codEstab: 1
   };
 
-  return apiPost(`${BASE_URL}/cliente/gravar`, getToken(unit), body);
+  return apiPost(`/api/belle/${unit}/cliente/gravar`, body);
 }
 
 export async function buscarPlanos(unit: string, codEstab: number, codCliente: number) {
-  return apiGet(`${BASE_URL}/cliente/planos?codEstab=${codEstab}&codCliente=${codCliente}`, getToken(unit));
+  return apiGet(`/api/belle/${unit}/cliente/planos?codEstab=${codEstab}&codCliente=${codCliente}`);
 }
 
 export async function buscarHistoricoAgenda(unit: string, codEstab: number, codCliente: number, dtInicio: string, dtFim: string) {
-  return apiGet(`${BASE_URL}/cliente/agenda?codEstab=${codEstab}&codCliente=${codCliente}&dtInicio=${dtInicio}&dtFim=${dtFim}`, getToken(unit));
+  return apiGet(`/api/belle/${unit}/cliente/agenda?codEstab=${codEstab}&codCliente=${codCliente}&dtInicio=${dtInicio}&dtFim=${dtFim}`);
 }
 
 export async function buscarAgendamentosAbertos(unit: string, codEstab: number, dtInicio: string, dtFim: string) {
-  return apiGet(`${BASE_URL}/agendamentos?codEstab=${codEstab}&dtInicio=${dtInicio}&dtFim=${dtFim}`, getToken(unit));
+  return apiGet(`/api/belle/${unit}/agendamentos?codEstab=${codEstab}&dtInicio=${dtInicio}&dtFim=${dtFim}`);
 }
 
 export async function buscarAgendamentosFinalizados(unit: string, codEstab: number, dtInicio: string, dtFim: string) {
-  return apiGet(`${BASE_URL}/agendamentos/finalizados?codEstab=${codEstab}&dtInicio=${dtInicio}&dtFim=${dtFim}`, getToken(unit));
+  return apiGet(`/api/belle/${unit}/agendamentos/finalizados?codEstab=${codEstab}&dtInicio=${dtInicio}&dtFim=${dtFim}`);
 }
 
 export async function buscarServicos(unit: string, codPlano: number) {
-  return apiGet(`${BASE_URL}/servico/listar?codPlano=${codPlano}`, getToken(unit));
+  return apiGet(`/api/belle/${unit}/servico/listar?codPlano=${codPlano}`);
 }
 
 export async function buscarDisponibilidade(unit: string, codEstab: number, dtAgenda: string, periodo: string = 'todos') {
-  return apiGet(`${BASE_URL}/agenda/disponibilidade?codEstab=${codEstab}&dtAgenda=${dtAgenda}&periodo=${periodo}&tpAgd=s`, getToken(unit));
+  return apiGet(`/api/belle/${unit}/agenda/disponibilidade?codEstab=${codEstab}&dtAgenda=${dtAgenda}&periodo=${periodo}&tpAgd=s`);
 }
 
 export async function gravarAgendamento(unit: string, bookingData: Record<string, unknown>) {
-  return apiPost(`${BASE_URL}/agenda/gravar`, getToken(unit), bookingData);
+  return apiPost(`/api/belle/${unit}/agenda/gravar`, bookingData);
 }
 
 export async function gravarAgendamentoSemServico(unit: string, bookingData: Record<string, unknown>) {
-  return apiPost(`${BASE_URL}/agenda/gravar_sem_servico`, getToken(unit), bookingData);
+  return apiPost(`/api/belle/${unit}/agenda/gravar_sem_servico`, bookingData);
 }
 
 export async function alterarStatusAgendamento(unit: string, codConsulta: number, status: string) {
-  return apiPut(`${BASE_URL}/agenda/status`, getToken(unit), {
+  return apiPut(`/api/belle/${unit}/agenda/status`, {
     codConsulta,
     novoStatus: status
   });
@@ -304,28 +286,16 @@ export interface VendaElosgate {
   [key: string]: any;
 }
 
-const FINANCIAL_UNIT_KEYS: Record<string, string> = {
-  mantena: "A3F7FF3375B1EBE13DB1CF09749D1A4949D53BD9EECD4DDCD4877D38CF1BF7F8",
-  "sao-mateus": "DBE42F861DE477D9BE335EB5E16897E15D412E1DA1E7C65550E9C441D8AD9A6C",
-  linhares: "1B5D672062BD4D7B23657A141812A3018A24D8755E08570BEF9556FA9FA71CCF",
-  aracruz: "E94FF7C18A2C2F752385B8DD5530B2BE164C409591B4981E26BDB4D62E2537A7",
-  serra: "3083D7AE32D10D9940CD2DD42DB82B0859FC08FAE586F903391F8378F8F564B3",
-};
-
 export async function buscarVendasElosgate(unit: string, cpf: string): Promise<VendaElosgate[]> {
-  const apiKey = FINANCIAL_UNIT_KEYS[unit];
-  if (!apiKey) throw new Error("Unidade inválida para financeiro");
-  
   const cleanCpf = cpf.replace(/\D/g, "");
   console.log(`[FINANCIAL GET]: Fetching sales for unit=${unit}, cleanCpf=${cleanCpf}`);
   
-  const res = await fetch("https://svc3.elosgate.com.br/generated/gatewaysvc.svc/json/ListarDadosVendas", {
+  const res = await fetch(`/api/elosgate/${unit}/ListarDadosVendas`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      APIKey: apiKey,
       Documento: cleanCpf,
     }),
   });
@@ -349,20 +319,13 @@ export async function buscarVendasElosgate(unit: string, cpf: string): Promise<V
 }
 
 export async function obterURLVenda(unit: string, numeroVenda: string): Promise<string | null> {
-  const apiKey = FINANCIAL_UNIT_KEYS[unit];
-  if (!apiKey) {
-    console.error(`[OBTER URL VENDA]: API Key not found for unit: ${unit}`);
-    return null;
-  }
-
   try {
-    const res = await fetch("https://svc3.elosgate.com.br/generated/gatewaysvc.svc/json/ObterURLVenda", {
+    const res = await fetch(`/api/elosgate/${unit}/ObterURLVenda`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        APIKey: apiKey,
         NumeroVenda: numeroVenda,
       }),
     });

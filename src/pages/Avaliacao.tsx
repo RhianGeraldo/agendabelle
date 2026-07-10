@@ -30,7 +30,7 @@ const Avaliacao = () => {
   const [step, setStep] = useState<Step>("login");
   const [unit, setUnit] = useState<string>("");
   const [cliente, setCliente] = useState<Cliente | null>(null);
-  
+
   // Login / Register state
   const [cpf, setCpf] = useState("");
   const [nome, setNome] = useState("");
@@ -96,7 +96,7 @@ const Avaliacao = () => {
         toast.error("CPF Inválido");
         return;
       }
-      
+
       // Para outros erros (ex: 404 cliente não encontrado), vamos para registro
       setStep("register");
       toast.info("Por favor, complete seu cadastro para agendar a avaliação.");
@@ -163,9 +163,9 @@ const Avaliacao = () => {
   }];
 
   const handleBooked = (
-    result: Record<string, unknown>, 
-    data: string, 
-    hr: string, 
+    result: Record<string, unknown>,
+    data: string,
+    hr: string,
     successfulSelection?: { plano: Plano; servicos: Servico[] }[],
     failed?: { plano: Plano; servicos: Servico[]; motivo: string }[],
     prof?: { cod: string; nome: string } | null
@@ -185,9 +185,9 @@ const Avaliacao = () => {
     <div className="min-h-screen flex flex-col items-center justify-start p-4 py-8 md:py-12">
       <div className="w-full max-w-lg">
         <div className="flex flex-col items-center mb-8">
-          <img 
-            src="/logo.png" 
-            alt="Agendamento Online" 
+          <img
+            src="/logo.png"
+            alt="Agendamento Online"
             className="h-20 w-auto mb-2"
             onError={(e) => (e.currentTarget.style.display = 'none')}
           />
