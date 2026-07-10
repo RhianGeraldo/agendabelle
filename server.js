@@ -33,14 +33,14 @@ const BELLE_BASE_URL = 'https://app.bellesoftware.com.br/api/release/controller/
 const ELOSGATE_BASE_URL = 'https://svc3.elosgate.com.br/generated/gatewaysvc.svc/json';
 
 // Proxy for Belle
-app.all('/api/belle/:unit/*', async (req, res) => {
+app.all('/api/belle/:unit/*splat', async (req, res) => {
   const { unit } = req.params;
   const token = UNIT_TOKENS[unit];
   if (!token) {
     return res.status(400).json({ error: 'Unidade inválida' });
   }
 
-  const endpoint = req.params[0];
+  const endpoint = req.params.splat.join('/');
   // Reconstruct query string
   const queryString = new URLSearchParams(req.query).toString();
   const url = `${BELLE_BASE_URL}/${endpoint}${queryString ? `?${queryString}` : ''}`;
@@ -76,14 +76,14 @@ app.all('/api/belle/:unit/*', async (req, res) => {
 });
 
 // Proxy for Elosgate
-app.all('/api/elosgate/:unit/*', async (req, res) => {
+app.all('/api/elosgate/:unit/*splat', async (req, res) => {
   const { unit } = req.params;
   const apiKey = FINANCIAL_UNIT_KEYS[unit];
   if (!apiKey) {
     return res.status(400).json({ error: 'Unidade inválida para financeiro' });
   }
 
-  const endpoint = req.params[0];
+  const endpoint = req.params.splat.join('/');
   const url = `${ELOSGATE_BASE_URL}/${endpoint}`;
 
   try {
