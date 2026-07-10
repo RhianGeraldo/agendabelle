@@ -12,12 +12,10 @@ export const UNITS: Unit[] = [
 ];
 
 async function apiGet(url: string) {
-  console.log(`[API GET]: ${url}`);
   const res = await fetch(url, {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
   });
-  console.log(`[API GET RESPONSE STATUS]: ${res.status}`);
   if (!res.ok) {
     let msg = `API error: ${res.status}`;
     try {
@@ -288,7 +286,6 @@ export interface VendaElosgate {
 
 export async function buscarVendasElosgate(unit: string, cpf: string): Promise<VendaElosgate[]> {
   const cleanCpf = cpf.replace(/\D/g, "");
-  console.log(`[FINANCIAL GET]: Fetching sales for unit=${unit}, cleanCpf=${cleanCpf}`);
   
   const res = await fetch(`/api/elosgate/${unit}/ListarDadosVendas`, {
     method: "POST",
@@ -305,7 +302,6 @@ export async function buscarVendasElosgate(unit: string, cpf: string): Promise<V
   }
 
   const data = await res.json();
-  console.log(`[FINANCIAL RESPONSE]: Received sales data for unit=${unit}`);
   
   if (data && Array.isArray(data.Vendas)) {
     return data.Vendas;
