@@ -92,7 +92,7 @@ export function AppointmentsStep({ cliente, appointments, loading, onNewBooking,
                     </AccordionTrigger>
                     <AccordionContent className="pt-1 pb-3 space-y-3">
                       {grouped[status].map((appt) => {
-                        const isReagendavel = appt.status === "Marcado" || (appt.status === "Confirmado" && appt.dtAgenda !== hojeStr);
+                        const isReagendavel = appt.status === "Marcado" || appt.status === "Confirmado";
                         const isAtendido = appt.status === "Atendido" || appt.status === "Aguardando" || appt.status === "Em Andamento";
 
                         return (
