@@ -58,13 +58,7 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
   const [agendamentosDoDia, setAgendamentosDoDia] = useState<AgendamentoHistorico[]>([]);
   const [booking, setBooking] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ slot: SlotOption; dia: DiaAgenda } | null>(null);
-  const [clientObservation, setClientObservation] = useState(initialObservation);
-
-  useEffect(() => {
-    if (initialObservation) {
-      setClientObservation(initialObservation);
-    }
-  }, [initialObservation]);
+  const [clientObservation, setClientObservation] = useState("");
 
   const allServicos = useMemo(() => selection.flatMap(s => s.servicos), [selection]);
   const tempoTotal = useMemo(() => allServicos.reduce((sum, s) => sum + s.tempo, 0), [allServicos]);
@@ -342,9 +336,15 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
       for (const sel of selection) {
         const planDuration = sel.servicos.reduce((sum, s) => sum + s.tempo, 0);
         
-        const finalObs = clientObservation.trim()
-          ? `${clientObservation.trim()} - Incluso por Agenda Estética e Laser`
-          : "Incluso por Agenda Estética e Laser";
+        const obsParts: string[] = [];
+        if (initialObservation && initialObservation.trim()) {
+          obsParts.push(initialObservation.trim());
+        }
+        if (clientObservation && clientObservation.trim()) {
+          obsParts.push(clientObservation.trim());
+        }
+        obsParts.push("Incluso por Agenda Estética e Laser");
+        const finalObs = obsParts.join(" - ");
 
         const bookingData: any = {
           codCli: cliente.codigo,
