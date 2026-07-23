@@ -2,7 +2,7 @@ import { useState } from "react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ArrowLeft, CalendarX, PlusCircle, ArrowRightCircle, CheckCircle2, LogIn, User, Info } from "lucide-react";
+import { Loader2, ArrowLeft, CalendarX, PlusCircle, ArrowRightCircle, CheckCircle2, LogIn, User, Info, Sparkles } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -94,6 +94,12 @@ export function AppointmentsStep({ cliente, appointments, loading, onNewBooking,
                       {grouped[status].map((appt) => {
                         const isReagendavel = appt.status === "Marcado" || appt.status === "Confirmado";
                         const isAtendido = appt.status === "Atendido" || appt.status === "Aguardando" || appt.status === "Em Andamento";
+                        const isAvaliacao = 
+                          appt.tipo === "Avaliação" || 
+                          !appt.servicos || 
+                          appt.servicos.length === 0 || 
+                          appt.servicos.some(s => s.nome?.toLowerCase().includes("avaliação") || s.nome?.toLowerCase().includes("avaliacao")) ||
+                          (appt.observacao && appt.observacao.toLowerCase().includes("avaliação"));
 
                         return (
                           <div key={appt.codConsulta} className="border rounded-md p-3 relative bg-background/50 overflow-hidden">
@@ -104,18 +110,27 @@ export function AppointmentsStep({ cliente, appointments, loading, onNewBooking,
                               </div>
                             </div>
                             <div className="pl-2 space-y-1 mb-3">
-                              <p className="text-xs font-medium text-primary">
-                                {appt.tipo === "Avaliação" ? "Avaliação:" : "Serviços:"}
-                              </p>
-                              {appt.tipo !== "Avaliação" && appt.servicos.map((s, i) => (
-                                <p key={i} className="text-xs text-muted-foreground truncate" title={s.nome}>
-                                  • {s.nome || "Serviço não informado"}
-                                </p>
-                              ))}
-                              {appt.tipo === "Avaliação" && (
-                                <p className="text-xs text-muted-foreground truncate">
-                                  • Avaliação
-                                </p>
+                              {isAvaliacao ? (
+                                <>
+                                  <div className="flex items-center gap-1.5 mb-1">
+                                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center gap-1 w-fit">
+                                      <Sparkles className="h-3 w-3" />
+                                      Avaliação Gratuita
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    • Atendimento e Avaliação (20 min)
+                                  </p>
+                                </>
+                              ) : (
+                                <>
+                                  <p className="text-xs font-medium text-primary">Serviços:</p>
+                                  {(appt.servicos || []).map((s, i) => (
+                                    <p key={i} className="text-xs text-muted-foreground truncate" title={s.nome}>
+                                      • {s.nome || "Serviço não informado"}
+                                    </p>
+                                  ))}
+                                </>
                               )}
                             </div>
                             

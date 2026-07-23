@@ -4,9 +4,29 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { buscarPlanos, buscarServicos, type Cliente, type Plano, type Servico, type AgendamentoHistorico } from "@/lib/api";
-import { ArrowLeft, ChevronRight, Loader2, Package, CheckCircle2, RefreshCw } from "lucide-react";
+import { ArrowLeft, ChevronRight, Loader2, Package, CheckCircle2, RefreshCw, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
+const EVALUATION_SELECTION = [{
+  plano: { codPlano: -1, nome: "Avaliação Gratuita", label: "Avaliação Gratuita", servicos: [] },
+  servicos: [{
+    codSaldo: 0,
+    codPlano: -1,
+    codServico: 0,
+    nome: "Avaliação Gratuita",
+    label: "Avaliação Gratuita",
+    valor: "0",
+    saldoAtual: "1",
+    saldoRestante: "1",
+    saldoTotal: "1",
+    tempo: 20,
+    usaDia: "N",
+    diaRetorno: 0,
+    categoria: "Avaliação",
+    tipo: "Avaliação"
+  }]
+}];
 
 interface PlansStepProps {
   unit: string;
@@ -257,7 +277,25 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
         ) : planos.length === 0 ? (
-          <p className="text-center text-muted-foreground py-8">Nenhum plano encontrado.</p>
+          <div className="py-4 text-center space-y-4">
+            <div className="p-6 rounded-xl border border-primary/20 bg-primary/5 text-center space-y-3">
+              <div className="h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-2">
+                <Sparkles className="h-6 w-6" />
+              </div>
+              <h3 className="font-semibold text-lg text-foreground">Agende sua Avaliação Gratuita</h3>
+              <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                Você não possui planos ativos no momento. Escolha o melhor dia e horário para realizar uma avaliação com nossos especialistas.
+              </p>
+              <Button
+                size="lg"
+                className="w-full sm:w-auto font-semibold mt-2"
+                onClick={() => onPlanSelected(EVALUATION_SELECTION)}
+              >
+                Agendar Avaliação Gratuita
+                <ChevronRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
+          </div>
         ) : (
           <div className="space-y-3">
             {planos.map((plano) => {
