@@ -18,7 +18,7 @@ import {
   type AgendamentoHistorico, 
   type VendaElosgate 
 } from "@/lib/api";
-import { format, subDays, addDays, subMonths, addMonths, parse, differenceInHours } from "date-fns";
+import { format, subDays, addDays, subMonths, addMonths, parse } from "date-fns";
 import { toast } from "sonner";
 
 type Step = "login" | "plans" | "schedule" | "confirmation";
@@ -164,19 +164,14 @@ const Index = () => {
 
   const handleReschedule = async (appt: AgendamentoHistorico) => {
     try {
-      const hojeStr = format(new Date(), "dd/MM/yyyy");
       const sameDayAppts = appointments.filter(a => 
         a.dtAgenda === appt.dtAgenda && 
         (a.status === "Marcado" || a.status === "Confirmado")
       );
       
-      const now = new Date();
-      await Promise.all(sameDayAppts.map(a => {
-        const apptDate = parse(`${a.dtAgenda} ${a.hrConsulta}`, 'dd/MM/yyyy HH:mm', new Date());
-        const hoursDiff = differenceInHours(apptDate, now);
-        const novoStatus = hoursDiff <= 10 ? "Falhou" : "Desmarcado";
-        return alterarStatusAgendamento(unit, a.codConsulta, novoStatus);
-      }));
+      await Promise.all(sameDayAppts.map(a => 
+        alterarStatusAgendamento(unit, a.codConsulta, "Desmarcado")
+      ));
       toast.success(sameDayAppts.length > 1 ? "Os agendamentos foram desmarcados." : "O agendamento anterior foi cancelado. Sinta-se livre para agendar um novo horário!");
       
       const idsToRemove = sameDayAppts.map(a => a.codConsulta);
