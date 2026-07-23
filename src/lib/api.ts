@@ -80,13 +80,14 @@ export async function gravarCliente(unit: string, dados: {
   celular: string;
   email: string;
   cpf: string;
+  observacao?: string;
 }) {
   const body = {
     nome: dados.nome,
     celular: dados.celular.replace(/\D/g, ''),
     email: dados.email,
     cpf: dados.cpf.replace(/\D/g, ''),
-    observacao: "Cadastro via AgendaBelle (Avaliação)",
+    observacao: dados.observacao || "Cadastro via AgendaBelle (Avaliação)",
     tpOrigem: "Campanha",
     codOrigem: "1",
     codEstab: 1

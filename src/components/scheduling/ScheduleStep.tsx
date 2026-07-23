@@ -29,6 +29,7 @@ interface ScheduleStepProps {
   unit: string;
   cliente: Cliente;
   selection: { plano: Plano; servicos: Servico[] }[];
+  initialObservation?: string;
   onBooked: (
     result: Record<string, unknown>, 
     data: string, 
@@ -46,7 +47,7 @@ interface SlotOption {
   nomeProf: string;
 }
 
-export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: ScheduleStepProps) {
+export function ScheduleStep({ unit, cliente, selection, initialObservation = "", onBooked, onBack }: ScheduleStepProps) {
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadingSlots, setLoadingSlots] = useState(false);
   
@@ -57,7 +58,13 @@ export function ScheduleStep({ unit, cliente, selection, onBooked, onBack }: Sch
   const [agendamentosDoDia, setAgendamentosDoDia] = useState<AgendamentoHistorico[]>([]);
   const [booking, setBooking] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ slot: SlotOption; dia: DiaAgenda } | null>(null);
-  const [clientObservation, setClientObservation] = useState("");
+  const [clientObservation, setClientObservation] = useState(initialObservation);
+
+  useEffect(() => {
+    if (initialObservation) {
+      setClientObservation(initialObservation);
+    }
+  }, [initialObservation]);
 
   const allServicos = useMemo(() => selection.flatMap(s => s.servicos), [selection]);
   const tempoTotal = useMemo(() => allServicos.reduce((sum, s) => sum + s.tempo, 0), [allServicos]);

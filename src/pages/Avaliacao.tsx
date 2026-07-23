@@ -6,7 +6,7 @@ import { ScheduleStep } from "@/components/scheduling/ScheduleStep";
 import { ConfirmationStep } from "@/components/scheduling/ConfirmationStep";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { buscarCliente, gravarCliente, UNITS, type Cliente, type Plano, type Servico } from "@/lib/api";
-import { Loader2, User, Phone, Mail, FileText, MapPin } from "lucide-react";
+import { Loader2, User, Phone, Mail, FileText, MapPin, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 type Step = "login" | "register" | "schedule" | "confirmation";
@@ -36,6 +36,7 @@ const Avaliacao = () => {
   const [nome, setNome] = useState("");
   const [celular, setCelular] = useState("");
   const [email, setEmail] = useState("");
+  const [tratamento, setTratamento] = useState("");
   const [loading, setLoading] = useState(false);
 
   // Scheduling state
@@ -50,20 +51,51 @@ const Avaliacao = () => {
     const params = new URLSearchParams(window.location.search);
     const unitParam = params.get("unidade");
     const cpfParam = params.get("cpf");
+    const nomeParam = params.get("nome");
+    const emailParam = params.get("email");
+    const celularParam = params.get("celular") || params.get("phone") || params.get("whatsapp");
+    const tratamentoParam = params.get("tratamento") || params.get("interesse") || params.get("area");
+
+    let currentUnit = "";
+    let cleanCpf = "";
 
     if (unitParam) {
+      currentUnit = unitParam;
       setUnit(unitParam);
       setHasUrlUnit(true);
     }
     if (cpfParam) {
-      const digits = cpfParam.replace(/\D/g, "").slice(0, 11);
-      let formatted = digits;
-      if (digits.length > 9) formatted = `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
-      else if (digits.length > 6) formatted = `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
-      else if (digits.length > 3) formatted = `${digits.slice(0, 3)}.${digits.slice(3)}`;
-      setCpf(formatted);
+      cleanCpf = cpfParam.replace(/\D/g, "").slice(0, 11);
+      setCpf(formatCpf(cleanCpf));
+    }
+    if (nomeParam) setNome(nomeParam);
+    if (emailParam) setEmail(emailParam);
+    if (celularParam) setCelular(formatPhone(celularParam));
+    if (tratamentoParam) setTratamento(tratamentoParam);
+
+    // Se unidade e CPF de 11 dígitos vierem na URL, busca e navega automaticamente
+    if (currentUnit && cleanCpf.length === 11) {
+      autoProcessUrlClient(currentUnit, cleanCpf);
     }
   }, []);
+
+  const autoProcessUrlClient = async (u: string, cleanCpf: string) => {
+    setLoading(true);
+    try {
+      const data = await buscarCliente(u, cleanCpf);
+      if (data && data.codigo) {
+        setCliente(data as Cliente);
+        setStep("schedule");
+        toast.success(`Bem-vindo(a), ${data.nome || "cliente"}! Escolha o horário da sua avaliação.`);
+      } else {
+        setStep("register");
+      }
+    } catch {
+      setStep("register");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSearchCpf = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,23 +113,18 @@ const Avaliacao = () => {
     try {
       const data = await buscarCliente(unit, cleanCpf);
       if (data && data.codigo) {
-        // Cliente existe -> Redirecionar para index com os dados logados
-        localStorage.setItem("agendabelle_unit", unit);
-        localStorage.setItem("agendabelle_cliente", JSON.stringify(data));
-        window.location.href = "/";
+        setCliente(data as Cliente);
+        setStep("schedule");
+        toast.success(`Bem-vindo(a), ${data.nome || "cliente"}! Escolha o horário da sua avaliação.`);
       } else {
-        // API pode retornar 200 porém sem cliente
         setStep("register");
         toast.info("Por favor, complete seu cadastro para agendar a avaliação.");
       }
     } catch (err: any) {
-      // Se a API retornar que o CPF é inválido, exibimos o erro em vez de ir para cadastro
       if (err.message && err.message.toLowerCase().includes("cpf inválido")) {
         toast.error("CPF Inválido");
         return;
       }
-
-      // Para outros erros (ex: 404 cliente não encontrado), vamos para registro
       setStep("register");
       toast.info("Por favor, complete seu cadastro para agendar a avaliação.");
     } finally {
@@ -114,19 +141,22 @@ const Avaliacao = () => {
 
     setLoading(true);
     try {
+      const obsCadastro = tratamento
+        ? `Cadastro via AgendaBelle (Avaliação) - Área de Interesse: ${tratamento}`
+        : "Cadastro via AgendaBelle (Avaliação)";
+
       const resultGravar = await gravarCliente(unit, {
         nome,
         celular,
         email,
-        cpf
+        cpf,
+        observacao: obsCadastro
       }) as any;
 
-      // Verifica se a API retornou erro mesmo com status 200
       if (resultGravar && (resultGravar.error || resultGravar.erro || resultGravar.msg)) {
         throw new Error(resultGravar.error || resultGravar.erro || resultGravar.msg);
       }
 
-      // Busca o cliente recém criado para pegar o 'codigo' dele
       const data = await buscarCliente(unit, cpf.replace(/\D/g, ""));
       if (data && data.codigo) {
         setCliente(data as Cliente);
@@ -154,13 +184,15 @@ const Avaliacao = () => {
       saldoAtual: "1",
       saldoRestante: "1",
       saldoTotal: "1",
-      tempo: 20, // 20 minutos
+      tempo: 20,
       usaDia: "N",
       diaRetorno: 0,
       categoria: "Avaliação",
       tipo: "Avaliação"
     }]
   }];
+
+  const initialObs = tratamento ? `Área de interesse: ${tratamento}` : "";
 
   const handleBooked = (
     result: Record<string, unknown>,
@@ -238,6 +270,15 @@ const Avaliacao = () => {
                     required
                   />
                 </div>
+
+                {tratamento && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      Interesse: {tratamento}
+                    </label>
+                  </div>
+                )}
 
                 <Button type="submit" className="w-full" size="lg" disabled={loading || !unit}>
                   {loading ? (
@@ -317,6 +358,15 @@ const Avaliacao = () => {
                   />
                 </div>
 
+                {tratamento && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      Tratamento de interesse: {tratamento}
+                    </label>
+                  </div>
+                )}
+
                 <Button type="submit" className="w-full" size="lg" disabled={loading}>
                   {loading ? (
                     <>
@@ -337,6 +387,7 @@ const Avaliacao = () => {
             unit={unit}
             cliente={cliente}
             selection={mockSelection}
+            initialObservation={initialObs}
             onBooked={handleBooked}
             onBack={() => setStep("login")}
           />
