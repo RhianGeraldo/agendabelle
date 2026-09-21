@@ -371,6 +371,7 @@ export function isSaleDelinquent(sale: VendaElosgate): boolean {
 
   const saleStatusStr = String(sale.StatusString || "").trim().toLowerCase();
   
+  // Venda marcada explicitamente como inadimplente ou atrasada
   if (
     saleStatusStr.includes("inadimpl") || 
     saleStatusStr.includes("atrasa") || 
@@ -390,13 +391,41 @@ export function isSaleDelinquent(sale: VendaElosgate): boolean {
       ) {
         continue;
       }
-      if (meioStatusStr.includes("inadimpl") || meioStatusStr.includes("atrasa") || String(meio.Status) === "3") {
+      
+      // Nota: Na Elosgate, MeiosPagamento com Status 3 é "Em Andamento" (contrato recorrente ativo), NÃO é inadimplência!
+      // Apenas consideramos inadimplente se o status textual do meio for expressamente inadimplente/atrasado.
+      if (meioStatusStr.includes("inadimpl") || meioStatusStr.includes("atrasa")) {
         return true;
       }
+
       if (meio.Parcelas && Array.isArray(meio.Parcelas)) {
         for (const parcela of meio.Parcelas) {
           const parcStatusStr = String(parcela.StatusString || "").trim().toLowerCase();
-          if (parcStatusStr.includes("inadimpl") || parcStatusStr.includes("atrasa") || String(parcela.Status) === "3") {
+          
+          // Ignora parcelas canceladas ou excluídas
+          if (
+            parcStatusStr.includes("cancel") ||
+            parcStatusStr.includes("exclu") ||
+            String(parcela.Status) === "8" ||
+            String(parcela.Status) === "18"
+          ) {
+            continue;
+          }
+
+          // Checa se a parcela foi paga (Status 2 = Efetivada, 11 = Pagamento Externo, 13 = Boleto Pago, 16 = Pix)
+          const isPaid = (
+            (parcela.Pagamento !== null && parcela.Pagamento !== undefined && String(parcela.Pagamento).trim() !== "") ||
+            String(parcela.Status) === "2" ||
+            String(parcela.Status) === "11" ||
+            String(parcela.Status) === "13" ||
+            String(parcela.Status) === "16" ||
+            parcStatusStr.includes("efetiv") ||
+            parcStatusStr.includes("pago") ||
+            parcStatusStr.includes("pix")
+          );
+
+          // Se a parcela não está paga e está atrasada (Status 3 em parcelas é "Atrasada" na Elosgate)
+          if (!isPaid && (parcStatusStr.includes("inadimpl") || parcStatusStr.includes("atrasa") || String(parcela.Status) === "3")) {
             return true;
           }
         }
@@ -428,9 +457,21 @@ export function isSaleFullyPaid(sale: VendaElosgate): boolean {
 
   const meioStatusStr = String(activeMeio?.StatusString || "").trim().toLowerCase();
   const parcelas = activeMeio?.Parcelas || [];
-  const paidCount = parcelas.filter(
-    (p) => p.Pagamento !== null && p.Pagamento !== undefined && String(p.Pagamento).trim() !== ""
-  ).length;
+  
+  const paidCount = parcelas.filter((p) => {
+    const ps = String(p.StatusString || "").toLowerCase();
+    return (
+      (p.Pagamento !== null && p.Pagamento !== undefined && String(p.Pagamento).trim() !== "") ||
+      String(p.Status) === "2" ||
+      String(p.Status) === "11" ||
+      String(p.Status) === "13" ||
+      String(p.Status) === "16" ||
+      ps.includes("efetiv") ||
+      ps.includes("pago") ||
+      ps.includes("pix")
+    );
+  }).length;
+
   const totalParc =
     activeMeio && typeof activeMeio.NumeroParcelas === "number" && activeMeio.NumeroParcelas > 0
       ? activeMeio.NumeroParcelas
@@ -439,7 +480,17 @@ export function isSaleFullyPaid(sale: VendaElosgate): boolean {
   // Check if any parcel is late
   const hasLate = parcelas.some((p) => {
     const ps = String(p.StatusString || "").toLowerCase();
-    return ps.includes("atrasa") || ps.includes("inadimpl") || String(p.Status) === "3";
+    const isPaid = (
+      (p.Pagamento !== null && p.Pagamento !== undefined && String(p.Pagamento).trim() !== "") ||
+      String(p.Status) === "2" ||
+      String(p.Status) === "11" ||
+      String(p.Status) === "13" ||
+      String(p.Status) === "16" ||
+      ps.includes("efetiv") ||
+      ps.includes("pago") ||
+      ps.includes("pix")
+    );
+    return !isPaid && (ps.includes("atrasa") || ps.includes("inadimpl") || String(p.Status) === "3");
   });
   if (hasLate) return false;
 

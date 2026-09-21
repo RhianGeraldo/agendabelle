@@ -174,7 +174,7 @@ export function PaymentsStep({
 
   const getSaleStatus = (sale: VendaElosgate) => {
     if (isSaleDelinquent(sale)) {
-      return "Atrasada";
+      return "Inadimplente";
     }
 
     if (isSaleFullyPaid(sale)) {
@@ -183,7 +183,7 @@ export function PaymentsStep({
 
     const saleStatusStr = String(sale.StatusString || "").trim().toLowerCase();
     if (saleStatusStr === "adimplente" || saleStatusStr === "regular" || String(sale.Status) === "2") {
-      return "Regular";
+      return "Adimplente";
     }
 
     const meio = getValidMeio(sale);
@@ -248,9 +248,19 @@ export function PaymentsStep({
   const getPaidParcelasCount = (sale: VendaElosgate) => {
     const meio = getValidMeio(sale);
     const parcelas = meio?.Parcelas || [];
-    return parcelas.filter(
-      p => p.Pagamento !== null && p.Pagamento !== undefined && String(p.Pagamento).trim() !== ""
-    ).length;
+    return parcelas.filter((p) => {
+      const ps = String(p.StatusString || "").toLowerCase();
+      return (
+        (p.Pagamento !== null && p.Pagamento !== undefined && String(p.Pagamento).trim() !== "") ||
+        String(p.Status) === "2" ||
+        String(p.Status) === "11" ||
+        String(p.Status) === "13" ||
+        String(p.Status) === "16" ||
+        ps.includes("efetiv") ||
+        ps.includes("pago") ||
+        ps.includes("pix")
+      );
+    }).length;
   };
 
   const formatCurrency = (val: number) => {
@@ -286,9 +296,9 @@ export function PaymentsStep({
         <div 
           className={cn(
             "absolute top-0 left-0 w-1.5 h-full",
-            isPaidCard 
+            isPaidCard || status === "Adimplente" || status === "Regular"
               ? "bg-emerald-500" 
-              : status === "Atrasada" 
+              : status === "Inadimplente" || status === "Atrasada" 
               ? "bg-destructive" 
               : "bg-primary"
           )} 
@@ -310,9 +320,9 @@ export function PaymentsStep({
                 <CheckCircle2 className="h-3 w-3" /> Pago
               </Badge>
             )}
-            {status === "Regular" && (
+            {(status === "Adimplente" || status === "Regular") && (
               <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/10 flex items-center gap-1 font-semibold">
-                <CheckCircle2 className="h-3 w-3" /> Regular
+                <CheckCircle2 className="h-3 w-3" /> Adimplente
               </Badge>
             )}
             {status === "Em Andamento" && (
@@ -320,7 +330,7 @@ export function PaymentsStep({
                 <Clock className="h-3 w-3" /> Em Andamento
               </Badge>
             )}
-            {status === "Atrasada" && (
+            {(status === "Inadimplente" || status === "Atrasada") && (
               <Badge className="bg-red-500/10 text-red-600 border-red-500/20 hover:bg-red-500/10 flex items-center gap-1 font-semibold">
                 <AlertCircle className="h-3 w-3" /> Inadimplente
               </Badge>
@@ -377,9 +387,20 @@ export function PaymentsStep({
             </p>
             <div className="space-y-1.5 pl-2">
               {parcelas.map((p, pIdx) => {
-                const isPaid = isPaidCard || (p.Pagamento !== null && p.Pagamento !== undefined && String(p.Pagamento).trim() !== "");
+                const ps = String(p.StatusString || "").toLowerCase();
+                const isPaid = isPaidCard || (
+                  (p.Pagamento !== null && p.Pagamento !== undefined && String(p.Pagamento).trim() !== "") ||
+                  String(p.Status) === "2" ||
+                  String(p.Status) === "11" ||
+                  String(p.Status) === "13" ||
+                  String(p.Status) === "16" ||
+                  ps.includes("efetiv") ||
+                  ps.includes("pago") ||
+                  ps.includes("pix")
+                );
                 const pStatusStr = String(p.StatusString || p.Status || "").trim().toLowerCase();
                 const isAtrasada = !isPaid && (pStatusStr === "atrasada" || pStatusStr === "atrasado" || String(p.Status) === "3");
+                const isAgendada = !isPaid && !isAtrasada && (pStatusStr === "agendada" || String(p.Status) === "1");
                 
                 const formattedVenc = getFormattedDate(p.Vencimento);
                 const formattedPag = isPaid ? getFormattedDate(p.Pagamento) : "";
@@ -413,6 +434,10 @@ export function PaymentsStep({
                         <Badge className="bg-red-500/10 text-red-600 border-red-500/20 hover:bg-red-500/10 h-5 text-[10px] font-semibold">
                           Atrasada
                         </Badge>
+                      ) : isAgendada ? (
+                        <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20 hover:bg-blue-500/10 h-5 text-[10px] font-semibold">
+                          Agendada
+                        </Badge>
                       ) : (
                         <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20 hover:bg-amber-500/10 h-5 text-[10px] font-semibold">
                           Pendente
@@ -426,8 +451,8 @@ export function PaymentsStep({
           </div>
         )}
 
-        {/* Payment Button for Active (unpaid) sales */}
-        {!isPaidCard && (status === "Pendente" || status === "Atrasada" || status === "Regular" || status === "Em Andamento") && (
+        {/* Payment Button for Active (unpaid / overdue) sales */}
+        {!isPaidCard && (status === "Inadimplente" || status === "Atrasada" || status === "Pendente" || Boolean(link)) && (
           <div className="pl-2 mt-3">
             {link ? (
               <Button 
@@ -460,6 +485,13 @@ export function PaymentsStep({
                 )}
               </Button>
             )}
+          </div>
+        )}
+
+        {!isPaidCard && (status === "Adimplente" || status === "Regular") && !link && (
+          <div className="pl-2 mt-2 pt-2 border-t border-border/40 flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+            <span>Plano em dia com cobrança recorrente automática.</span>
           </div>
         )}
       </div>
