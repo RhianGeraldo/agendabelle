@@ -401,7 +401,7 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
                     {isTattoo && (
                       <div className="mt-1 mb-1.5">
                         <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 font-medium">
-                          <CalendarClock className="h-3 w-3" /> Data sob consulta (Máquina 1 dia na clínica)
+                          <CalendarClock className="h-3 w-3" /> Sob consulta
                         </span>
                       </div>
                     )}
@@ -537,10 +537,10 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
                 {tattooModal.planoNome}
               </span>
               <span className="block text-muted-foreground leading-relaxed text-xs sm:text-sm">
-                A máquina de remoção de tatuagem é um equipamento especial que fica <strong>somente 1 dia na clínica</strong>.
+                O agendamento deste procedimento é realizado <strong>sob consulta</strong>.
               </span>
               <span className="block text-muted-foreground leading-relaxed text-xs sm:text-sm">
-                Por esse motivo, o agendamento possui uma data específica e <strong>nossa equipe entrará em contato diretamente com você</strong> para agendar o seu horário no dia exato em que a máquina estará disponível na unidade.
+                Nossa equipe entrará em contato diretamente com você para agendar o seu melhor horário.
               </span>
               {cliente?.celular && (
                 <span className="block bg-muted/60 p-2.5 rounded-lg border border-border/60 text-xs text-muted-foreground">

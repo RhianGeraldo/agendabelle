@@ -725,10 +725,10 @@ export function ScheduleStep({ unit, cliente, selection, appointments = [], vend
               {tattooModal.planoNome}
             </span>
             <span className="block text-muted-foreground leading-relaxed text-xs sm:text-sm">
-              A máquina de remoção de tatuagem é um equipamento especial que fica <strong>somente 1 dia na clínica</strong>.
+              O agendamento deste procedimento é realizado <strong>sob consulta</strong>.
             </span>
             <span className="block text-muted-foreground leading-relaxed text-xs sm:text-sm">
-              Por esse motivo, o agendamento possui uma data específica e <strong>nossa equipe entrará em contato diretamente com você</strong> para agendar o seu horário no dia exato em que a máquina estará disponível na unidade.
+              Nossa equipe entrará em contato diretamente com você para agendar o seu melhor horário.
             </span>
             {cliente?.celular && (
               <span className="block bg-muted/60 p-2.5 rounded-lg border border-border/60 text-xs text-muted-foreground">
