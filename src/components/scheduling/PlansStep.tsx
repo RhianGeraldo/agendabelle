@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -35,16 +35,17 @@ interface PlansStepProps {
   onPlanSelected: (selection: { plano: Plano; servicos: Servico[] }[]) => void;
   onBack: () => void;
   onRefresh?: () => void;
+  refreshKey?: number;
 }
 
-export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack, onRefresh }: PlansStepProps) {
+export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack, onRefresh, refreshKey }: PlansStepProps) {
   const [planos, setPlanos] = useState<Plano[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectingPlan, setSelectingPlan] = useState<number | string | null>(null);
   const [isMultiSelectOpen, setIsMultiSelectOpen] = useState(false);
   const [selectedPlanIds, setSelectedPlanIds] = useState<number[]>([]);
 
-  const fetchPlanos = async () => {
+  const fetchPlanos = useCallback(async () => {
     try {
       setLoading(true);
       const data = await buscarPlanos(unit, 1, cliente.codigo);
@@ -54,11 +55,11 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
     } finally {
       setLoading(false);
     }
-  };
+  }, [unit, cliente.codigo]);
 
   useEffect(() => {
     fetchPlanos();
-  }, [unit, cliente.codigo]);
+  }, [fetchPlanos, refreshKey]);
 
   const handleRefresh = () => {
     fetchPlanos();
@@ -177,7 +178,7 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
     setSelectingPlan("all");
     try {
       const selectedPlans = planos.filter(p => selectedPlanIds.includes(p.codPlano));
-      let selectionRaw = await Promise.all(selectedPlans.map(async (plano) => {
+      const selectionRaw = await Promise.all(selectedPlans.map(async (plano) => {
         const servicos = await buscarServicos(unit, plano.codPlano);
         return { plano, servicos: Array.isArray(servicos) ? servicos : [] };
       }));

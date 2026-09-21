@@ -11,24 +11,39 @@ import {
   addMinutesToTime,
   buscarAgendamentosAbertos,
   buscarAgendamentosFinalizados,
+  buscarPlanos,
+  obterURLVenda,
+  buscarVendasElosgate,
+  isSaleDelinquent,
   type Cliente,
   type Plano,
   type Servico,
   type DiaAgenda,
   type AgendamentoHistorico,
+  type VendaElosgate,
 } from "@/lib/api";
-import { ArrowLeft, Loader2, Calendar, Package, User } from "lucide-react";
+import { ArrowLeft, Loader2, Calendar, Package, User, AlertCircle, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { format, addDays, subMonths, addMonths, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar as CalendarUI } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 interface ScheduleStepProps {
   unit: string;
   cliente: Cliente;
   selection: { plano: Plano; servicos: Servico[] }[];
+  appointments?: AgendamentoHistorico[];
+  vendas?: VendaElosgate[];
   initialObservation?: string;
   onBooked: (
     result: Record<string, unknown>, 
@@ -47,7 +62,7 @@ interface SlotOption {
   nomeProf: string;
 }
 
-export function ScheduleStep({ unit, cliente, selection, initialObservation = "", onBooked, onBack }: ScheduleStepProps) {
+export function ScheduleStep({ unit, cliente, selection, appointments = [], vendas = [], initialObservation = "", onBooked, onBack }: ScheduleStepProps) {
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadingSlots, setLoadingSlots] = useState(false);
   
@@ -55,10 +70,22 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
   const [targetDate, setTargetDate] = useState<Date | undefined>(undefined);
   
   const [diasAgenda, setDiasAgenda] = useState<DiaAgenda[]>([]);
-  const [agendamentosDoDia, setAgendamentosDoDia] = useState<AgendamentoHistorico[]>([]);
   const [booking, setBooking] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ slot: SlotOption; dia: DiaAgenda } | null>(null);
   const [clientObservation, setClientObservation] = useState("");
+  const [blockedPaymentModal, setBlockedPaymentModal] = useState<{
+    isOpen: boolean;
+    planoNome: string;
+    vendaNumero: string;
+    statusString: string;
+    paymentUrl: string | null;
+  }>({
+    isOpen: false,
+    planoNome: "",
+    vendaNumero: "",
+    statusString: "",
+    paymentUrl: null,
+  });
 
   const allServicos = useMemo(() => selection.flatMap(s => s.servicos), [selection]);
   const tempoTotal = useMemo(() => allServicos.reduce((sum, s) => sum + s.tempo, 0), [allServicos]);
@@ -72,34 +99,7 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
         const hoje = new Date();
         let foundDate = hoje;
         try {
-          const pastStart1 = format(subMonths(hoje, 4), "dd/MM/yyyy");
-          const pastEnd1 = format(subMonths(hoje, 2), "dd/MM/yyyy");
-          const pastStart2 = format(subMonths(hoje, 2), "dd/MM/yyyy");
-          const pastEnd2 = format(hoje, "dd/MM/yyyy");
-          
-          const futureStart1 = format(hoje, "dd/MM/yyyy");
-          const futureEnd1 = format(addMonths(hoje, 2), "dd/MM/yyyy");
-          const futureStart2 = format(addMonths(hoje, 2), "dd/MM/yyyy");
-          const futureEnd2 = format(addMonths(hoje, 4), "dd/MM/yyyy");
-
-          const results = await Promise.allSettled([
-            buscarAgendamentosFinalizados(unit, 1, pastStart1, pastEnd1),
-            buscarAgendamentosFinalizados(unit, 1, pastStart2, pastEnd2),
-            buscarAgendamentosFinalizados(unit, 1, futureStart1, futureEnd1),
-            buscarAgendamentosFinalizados(unit, 1, futureStart2, futureEnd2),
-            buscarAgendamentosAbertos(unit, 1, pastStart1, pastEnd1),
-            buscarAgendamentosAbertos(unit, 1, pastStart2, pastEnd2),
-            buscarAgendamentosAbertos(unit, 1, futureStart1, futureEnd1),
-            buscarAgendamentosAbertos(unit, 1, futureStart2, futureEnd2)
-          ]);
-
-          const allHist: any[] = [];
-          results.forEach((res) => {
-            if (res.status === "fulfilled" && Array.isArray(res.value)) {
-              const clientAppts = res.value.filter(a => a.cliente && String(a.cliente.cod) === String(cliente.codigo));
-              allHist.push(...clientAppts);
-            }
-          });
+          const allHist: AgendamentoHistorico[] = appointments && appointments.length > 0 ? [...appointments] : [];
 
           const isDepilacao = (nome: string) => !!nome && nome.toLowerCase().includes("depila");
           const isClareamento = (nome: string) => !!nome && nome.toLowerCase().includes("clareamento");
@@ -110,18 +110,14 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
           };
           const isRejuvenescimento = (nome: string) => !!nome && nome.toLowerCase().includes("rejuvenescimento");
           
-          let lastDepilDate: Date | null = null;
-          let lastClareamentoDate: Date | null = null;
-          let lastSameServiceDate: Date | null = null;
-
-          const eventosValidos = allHist.filter((a: any) => {
+          const eventosValidos = allHist.filter((a: AgendamentoHistorico) => {
             if (!a.status || !a.servicos) return false;
             const statusLower = a.status.trim().toLowerCase();
             return ["atendido", "aguardando", "em andamento", "marcado", "confirmado"].includes(statusLower);
           });
 
           // Sort descending (most recent first)
-          const sortedHist = [...eventosValidos].sort((a: any, b: any) => {
+          const sortedHist = [...eventosValidos].sort((a: AgendamentoHistorico, b: AgendamentoHistorico) => {
             const dA = parse(a.dtAgenda, "dd/MM/yyyy", new Date());
             const dB = parse(b.dtAgenda, "dd/MM/yyyy", new Date());
             if (dB.getTime() === dA.getTime()) {
@@ -135,17 +131,17 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
           const agendandoFacialArea = allServicos.some(s => isFacialArea(s.nome));
           const agendandoRejuvenescimento = allServicos.some(s => isRejuvenescimento(s.nome));
 
-          const latestDepilOrClareamento = sortedHist.find((a: any) => 
-            a.servicos.some((s: any) => isDepilacao(s.nome) || isClareamento(s.nome))
+          const latestDepilOrClareamento = sortedHist.find((a: AgendamentoHistorico) => 
+            a.servicos.some((s) => isDepilacao(s.nome) || isClareamento(s.nome))
           );
 
-          const latestFacialOrRejuve = sortedHist.find((a: any) => 
-            a.servicos.some((s: any) => isFacialArea(s.nome) || isRejuvenescimento(s.nome))
+          const latestFacialOrRejuve = sortedHist.find((a: AgendamentoHistorico) => 
+            a.servicos.some((s) => isFacialArea(s.nome) || isRejuvenescimento(s.nome))
           );
 
-          const latestSameService = sortedHist.find((a: any) => 
-            a.servicos.some((as: any) => 
-               allServicos.some(s => String(s.codServico) === String(as.cod || "").trim())
+          const latestSameService = sortedHist.find((a: AgendamentoHistorico) => 
+            a.servicos.some((as) => 
+                allServicos.some(s => String(s.codServico) === String(as.cod || "").trim())
             )
           );
 
@@ -155,8 +151,8 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
           // Regra Especial de Cruzamento (Depilação e Clareamento se afetam mutuamente)
           if ((agendandoDepil || agendandoClareamento) && latestDepilOrClareamento) {
             const dtUltimo = parse(latestDepilOrClareamento.dtAgenda, "dd/MM/yyyy", new Date());
-            const ultimoFoiDepil = latestDepilOrClareamento.servicos.some((s: any) => isDepilacao(s.nome));
-            const ultimoFoiClareamento = latestDepilOrClareamento.servicos.some((s: any) => isClareamento(s.nome));
+            const ultimoFoiDepil = latestDepilOrClareamento.servicos.some((s) => isDepilacao(s.nome));
+            const ultimoFoiClareamento = latestDepilOrClareamento.servicos.some((s) => isClareamento(s.nome));
 
             let dias = 0;
             if (ultimoFoiDepil && agendandoClareamento) dias = 25;
@@ -171,8 +167,8 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
           // Regra Especial de Cruzamento (Área Facial vs Rejuvenescimento Facial - 45 dias)
           if ((agendandoFacialArea || agendandoRejuvenescimento) && latestFacialOrRejuve) {
             const dtUltimo = parse(latestFacialOrRejuve.dtAgenda, "dd/MM/yyyy", new Date());
-            const ultimoFoiFacialArea = latestFacialOrRejuve.servicos.some((s: any) => isFacialArea(s.nome));
-            const ultimoFoiRejuvenescimento = latestFacialOrRejuve.servicos.some((s: any) => isRejuvenescimento(s.nome));
+            const ultimoFoiFacialArea = latestFacialOrRejuve.servicos.some((s) => isFacialArea(s.nome));
+            const ultimoFoiRejuvenescimento = latestFacialOrRejuve.servicos.some((s) => isRejuvenescimento(s.nome));
 
             let dias = 0;
             if (ultimoFoiFacialArea && agendandoRejuvenescimento) dias = 45;
@@ -212,7 +208,7 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
 
     fetchHistory();
     return () => { mounted = false; };
-  }, [unit, cliente.codigo, allServicos]);
+  }, [unit, cliente.codigo, allServicos, appointments]);
 
   // 2. Load Availability when targetDate changes
   useEffect(() => {
@@ -223,31 +219,19 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
       try {
         setLoadingSlots(true);
         const datesToFetch = [targetDate];
-        // Para garantir 7 dias, buscamos a data alvo e também a próxima segunda-feira
+        // Para garantir até 14 dias (2 semanas), buscamos a data alvo e também a próxima segunda-feira
         const dayOfWeek = targetDate.getDay(); // 0 = Dom, 1 = Seg ... 6 = Sáb
-        const daysUntilNextMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
+        const daysUntilNextMonday = dayOfWeek === 0 ? 8 : 8 - dayOfWeek;
         datesToFetch.push(addDays(targetDate, daysUntilNextMonday));
 
-        const fetchPromises: Promise<any>[] = [];
-        const apptPromises: Promise<any>[] = [];
+        const fetchPromises: Promise<unknown>[] = [];
         
         datesToFetch.forEach(dateObj => {
           const dtStr = format(dateObj, "dd/MM/yyyy");
           fetchPromises.push(buscarDisponibilidade(unit, 1, dtStr));
-          apptPromises.push(buscarAgendamentosAbertos(unit, 1, dtStr, dtStr));
         });
 
-        const [results, apptResults] = await Promise.all([
-          Promise.allSettled(fetchPromises),
-          Promise.allSettled(apptPromises)
-        ]);
-
-        const allAppts: AgendamentoHistorico[] = [];
-        apptResults.forEach(res => {
-          if (res.status === "fulfilled" && Array.isArray(res.value)) {
-            allAppts.push(...res.value);
-          }
-        });
+        const results = await Promise.allSettled(fetchPromises);
 
         const allDias: DiaAgenda[] = [];
         results.forEach(res => {
@@ -282,9 +266,8 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
         });
 
         if (mounted) {
-          setAgendamentosDoDia(allAppts);
-          // Sempre exibe exatamente 7 dias
-          setDiasAgenda(Array.from(mergedMap.values()).slice(0, 7));
+          // Exibe até 14 dias (2 semanas completas)
+          setDiasAgenda(Array.from(mergedMap.values()).slice(0, 14));
         }
       } catch (err) {
         console.error("Erro ao carregar horários", err);
@@ -296,7 +279,7 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
 
     loadSlots();
     return () => { mounted = false; };
-  }, [targetDate, unit]);
+  }, [targetDate, unit, minAllowedDate]);
 
   const availableSlots: { dia: DiaAgenda; prof: { codProf: number; nome: string }; slots: SlotOption[] }[] = [];
   const isAvaliacaoOnly = selection.length === 1 && selection[0].plano.codPlano === -1;
@@ -326,8 +309,94 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
     if (!selectedSlot) return;
     const { slot, dia } = selectedSlot;
     
+    // Validação Financeira (Elosgate) no clique de confirmar agendamento
+    // Se o cliente tiver planos na Elosgate e estiver com inadimplência, ele não deve agendar.
+    let currentVendas = vendas;
+    if ((!currentVendas || currentVendas.length === 0) && cliente.cpf) {
+      try {
+        currentVendas = await buscarVendasElosgate(unit, cliente.cpf);
+      } catch (err) {
+        console.error("[VALIDAÇÃO FINANCEIRA] Erro ao buscar vendas Elosgate:", err);
+      }
+    }
+
+    if (currentVendas && currentVendas.length > 0) {
+      // 1. Prioriza venda inadimplente associada a um dos planos selecionados nesta sessão
+      const matchedDelinquentSale = currentVendas.find(
+        (v) =>
+          selection.some(
+            (sel) =>
+              sel.plano.codPlano !== -1 &&
+              (String(sel.plano.codPlano).trim() === String(v.Numero || "").trim() ||
+               String(sel.plano.codPlano).trim() === String(v.ReferenciaVenda || "").trim())
+          ) && isSaleDelinquent(v)
+      );
+
+      // 2. Se o cliente tiver QUALQUER plano/contrato inadimplente na Elosgate, bloqueia qualquer novo agendamento
+      const delinquentSale = matchedDelinquentSale || currentVendas.find((v) => isSaleDelinquent(v));
+
+      if (delinquentSale) {
+        // Localiza o nome do plano para exibir com clareza no modal
+        let planoNome = "";
+        const matchedSelection = selection.find(
+          (sel) =>
+            sel.plano.codPlano !== -1 &&
+            (String(sel.plano.codPlano).trim() === String(delinquentSale.Numero || "").trim() ||
+             String(sel.plano.codPlano).trim() === String(delinquentSale.ReferenciaVenda || "").trim())
+        );
+
+        if (matchedSelection) {
+          planoNome = matchedSelection.plano.nome;
+        } else if (cliente.codigo) {
+          try {
+            const allPlanos = await buscarPlanos(unit, 1, cliente.codigo);
+            if (Array.isArray(allPlanos)) {
+              const matchedPlano = allPlanos.find(
+                (p: Plano) =>
+                  String(p.codPlano).trim() === String(delinquentSale.Numero || "").trim()
+              );
+              if (matchedPlano) {
+                planoNome = matchedPlano.nome || matchedPlano.label;
+              }
+            }
+          } catch (err) {
+            console.error("[VALIDAÇÃO FINANCEIRA] Erro ao buscar nome do plano inadimplente:", err);
+          }
+        }
+
+        if (!planoNome) {
+          planoNome = `Plano com Pendência Financeira (Contrato #${delinquentSale.Numero})`;
+        }
+
+        // Abre o modal de bloqueio imediatamente para feedback instantâneo
+        setBlockedPaymentModal({
+          isOpen: true,
+          planoNome,
+          vendaNumero: delinquentSale.Numero,
+          statusString: delinquentSale.StatusString || "Inadimplente",
+          paymentUrl: null,
+        });
+
+        // Busca o link de pagamento em paralelo
+        obterURLVenda(unit, delinquentSale.Numero)
+          .then((url) => {
+            if (url) {
+              setBlockedPaymentModal((prev) => ({
+                ...prev,
+                paymentUrl: url,
+              }));
+            }
+          })
+          .catch((err) => {
+            console.error("[VALIDAÇÃO FINANCEIRA] Erro ao obter link de pagamento:", err);
+          });
+
+        return; // Interrompe o agendamento!
+      }
+    }
+
     setBooking(true);
-    let lastResult: any = null;
+    let lastResult: Record<string, unknown> | null = null;
     let successCount = 0;
 
     try {
@@ -346,7 +415,7 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
         obsParts.push("Incluso por Agenda Estética e Laser");
         const finalObs = obsParts.join(" - ");
 
-        const bookingData: any = {
+        const bookingData: Record<string, unknown> = {
           codCli: cliente.codigo,
           codEstab: 1,
           prof: { cod_usuario: "", nom_usuario: "" },
@@ -358,7 +427,7 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
           observacao: finalObs,
         };
 
-        let result: any;
+        let result: Record<string, unknown>;
 
         if (sel.plano.codPlano !== -1) {
           bookingData.serv = sel.servicos.map((s) => ({
@@ -366,17 +435,17 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
             tempo: String(s.tempo),
           }));
           bookingData.codPlano = String(sel.plano.codPlano);
-          result = await gravarAgendamento(unit, bookingData);
+          result = (await gravarAgendamento(unit, bookingData)) as Record<string, unknown>;
         } else {
           // Payload específico para Avaliação
           bookingData.tempo = sel.servicos[0]?.tempo || 20;
           bookingData.tipoConsulta = "Avaliação";
           bookingData.temPreferencia = false;
-          result = await gravarAgendamentoSemServico(unit, bookingData);
+          result = (await gravarAgendamentoSemServico(unit, bookingData)) as Record<string, unknown>;
         }
         
         if (result && result.dis === false) {
-          throw new Error(result.msg || "Não foi possível realizar o agendamento no horário selecionado.");
+          throw new Error(String(result.msg || "Não foi possível realizar o agendamento no horário selecionado."));
         }
         
         successCount++;
@@ -385,16 +454,17 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
       }
       
       toast.success(selection.length > 1 ? "Todos os agendamentos realizados com sucesso!" : "Agendamento realizado com sucesso!");
-      onBooked(lastResult, dia.data, slot.horario, selection, undefined, null);
-    } catch (err: any) {
+      onBooked(lastResult!, dia.data, slot.horario, selection, undefined, null);
+    } catch (err: unknown) {
       console.error("[AGENDAMENTO] Erro:", err);
+      const errMsg = err instanceof Error ? err.message : String(err || "Erro no agendamento");
       // Se agendou parcialmente e quebrou no meio, não deixa o usuário travado.
       if (lastResult !== null) {
          const failedItems = selection.slice(successCount).map(sel => {
-           let amigavel = err.message;
+           let amigavel = errMsg;
            const nomePlanoEServicos = (sel.plano.nome + " " + sel.servicos.map(s => s.nome).join(" ")).toLowerCase();
            
-           if (err.message.includes("dias após")) {
+           if (errMsg.includes("dias após")) {
              if (nomePlanoEServicos.includes("clareamento")) {
                amigavel = "Só pode ser agendado 25 dias após a realização de depilação.";
              } else if (nomePlanoEServicos.includes("depila")) {
@@ -423,7 +493,8 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
   };
 
   return (
-    <Card className="border-0 shadow-lg shadow-primary/5">
+    <>
+      <Card className="border-0 shadow-lg shadow-primary/5">
       <CardHeader className="pb-2">
         <Button variant="ghost" size="sm" onClick={onBack} className="w-fit -ml-2 mb-2" disabled={booking || loadingInitial}>
           <ArrowLeft className="h-4 w-4 mr-1" /> Voltar
@@ -504,7 +575,7 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
                 Não localizamos horários livres para essa duração na data selecionada.
               </p>
             ) : (
-              <Accordion type="single" collapsible className="w-full">
+              <Accordion type="single" collapsible defaultValue="item-0" className="w-full">
                 {[...new Map(availableSlots.map(s => [s.dia.data, s.dia])).values()].map((dia, groupIdx) => {
                   const roomsForDay = availableSlots.filter(s => s.dia.data === dia.data);
                   const totalSlots = roomsForDay.reduce((acc, r) => acc + r.slots.length, 0);
@@ -512,9 +583,10 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
                   return (
                     <AccordionItem value={`item-${groupIdx}`} key={dia.data} className="border-b-0 space-y-3 pb-3">
                       <AccordionTrigger className="text-sm font-semibold hover:no-underline border-b pb-2 pt-0 w-full justify-between flex">
-                        {dia.nome} - {dia.data}
+                        <span>{dia.nome} - {dia.data}</span>
+                        <span className="text-xs font-normal text-muted-foreground mr-2">{totalSlots} {totalSlots === 1 ? 'horário' : 'horários'}</span>
                       </AccordionTrigger>
-                      <AccordionContent className="px-1">
+                      <AccordionContent className="px-1 pt-2">
                         {roomsForDay.map(({ prof, slots }) => (
                           <div key={prof.codProf} className="mb-4">
                             <p className="text-xs font-semibold text-muted-foreground mb-2 border-b pb-1">{prof.nome}</p>
@@ -530,7 +602,8 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
                                 return (
                                   <AccordionItem value={`period-${prof.codProf}-${periodoName}`} key={periodoName} className="border-b-0">
                                     <AccordionTrigger className="text-xs text-muted-foreground font-medium hover:no-underline border-b pb-2 pt-3 w-full justify-between flex">
-                                      {periodoName}
+                                      <span>{periodoName}</span>
+                                      <span className="text-[11px] font-normal text-muted-foreground mr-2">{periodSlots.length} {periodSlots.length === 1 ? 'vaga' : 'vagas'}</span>
                                     </AccordionTrigger>
                                     <AccordionContent>
                                       <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 pt-3 pb-1">
@@ -580,7 +653,7 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
             placeholder="Alguma observação para a clínica?" 
             value={clientObservation}
             onChange={(e) => setClientObservation(e.target.value)}
-            disabled={booking || !selectedSlot}
+            disabled={booking}
           />
         </div>
         <Button
@@ -599,5 +672,62 @@ export function ScheduleStep({ unit, cliente, selection, initialObservation = ""
         </Button>
       </div>
     </Card>
+
+    <Dialog open={blockedPaymentModal.isOpen} onOpenChange={(open) => {
+      if (!open) setBlockedPaymentModal(prev => ({ ...prev, isOpen: false }));
+    }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader className="space-y-3">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+            <AlertCircle className="h-6 w-6" />
+          </div>
+          <DialogTitle className="text-center text-lg font-bold">
+            Agendamento Bloqueado
+          </DialogTitle>
+          <DialogDescription className="text-center text-sm space-y-2">
+            <span className="block text-muted-foreground">
+              Identificamos uma pendência financeira vinculada ao plano:
+            </span>
+            <span className="block font-semibold text-foreground text-sm">
+              {blockedPaymentModal.planoNome}
+            </span>
+            <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium bg-destructive/10 text-destructive">
+              Venda #{blockedPaymentModal.vendaNumero} • {blockedPaymentModal.statusString || "Inadimplente"}
+            </span>
+            <span className="block pt-2 text-xs text-muted-foreground">
+              Para confirmar o seu agendamento, regularize o pagamento clicando no botão abaixo.
+            </span>
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="flex flex-col sm:flex-col gap-2 pt-2">
+          {blockedPaymentModal.paymentUrl ? (
+            <Button
+              className="w-full font-semibold gap-2"
+              onClick={() => window.open(blockedPaymentModal.paymentUrl!, "_blank")}
+            >
+              <ExternalLink className="h-4 w-4" />
+              Pagar Agora
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              className="w-full gap-2"
+              disabled
+            >
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Carregando link de pagamento...
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => setBlockedPaymentModal(prev => ({ ...prev, isOpen: false }))}
+          >
+            Voltar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </>
   );
 }

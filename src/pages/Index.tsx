@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { LoginStep } from "@/components/scheduling/LoginStep";
 import { PlansStep } from "@/components/scheduling/PlansStep";
 import { ScheduleStep } from "@/components/scheduling/ScheduleStep";
@@ -12,6 +12,7 @@ import {
   buscarAgendamentosFinalizados, 
   alterarStatusAgendamento, 
   buscarVendasElosgate, 
+  isSaleExcluded,
   type Cliente, 
   type Plano, 
   type Servico, 
@@ -40,6 +41,10 @@ const Index = () => {
   const [loadingFinanceiro, setLoadingFinanceiro] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  const validVendas = useMemo(() => {
+    return (vendas || []).filter((v) => !isSaleExcluded(v));
+  }, [vendas]);
+
   useEffect(() => {
     const cachedUnit = localStorage.getItem("agendabelle_unit");
     const cachedCliente = localStorage.getItem("agendabelle_cliente");
@@ -66,28 +71,15 @@ const Index = () => {
           setLoadingFinanceiro(true);
           const hoje = new Date();
           
-          const pastStart1 = format(subMonths(hoje, 4), "dd/MM/yyyy");
-          const pastEnd1 = format(subMonths(hoje, 2), "dd/MM/yyyy");
-          
-          const pastStart2 = format(subMonths(hoje, 2), "dd/MM/yyyy");
-          const pastEnd2 = format(hoje, "dd/MM/yyyy");
-          
-          const futureStart1 = format(hoje, "dd/MM/yyyy");
-          const futureEnd1 = format(addMonths(hoje, 2), "dd/MM/yyyy");
-          
-          const futureStart2 = format(addMonths(hoje, 2), "dd/MM/yyyy");
-          const futureEnd2 = format(addMonths(hoje, 4), "dd/MM/yyyy");
+          const pastStart = format(subMonths(hoje, 3), "dd/MM/yyyy");
+          const hojeStr = format(hoje, "dd/MM/yyyy");
+          const futureEnd = format(addMonths(hoje, 3), "dd/MM/yyyy");
 
           const [results, elosgateRes] = await Promise.all([
             Promise.allSettled([
-              buscarAgendamentosAbertos(unit, 1, pastStart1, pastEnd1),
-              buscarAgendamentosAbertos(unit, 1, pastStart2, pastEnd2),
-              buscarAgendamentosAbertos(unit, 1, futureStart1, futureEnd1),
-              buscarAgendamentosAbertos(unit, 1, futureStart2, futureEnd2),
-              buscarAgendamentosFinalizados(unit, 1, pastStart1, pastEnd1),
-              buscarAgendamentosFinalizados(unit, 1, pastStart2, pastEnd2),
-              buscarAgendamentosFinalizados(unit, 1, futureStart1, futureEnd1),
-              buscarAgendamentosFinalizados(unit, 1, futureStart2, futureEnd2)
+              buscarAgendamentosFinalizados(unit, 1, pastStart, hojeStr, cliente.codigo),
+              buscarAgendamentosAbertos(unit, 1, pastStart, hojeStr, cliente.codigo),
+              buscarAgendamentosAbertos(unit, 1, hojeStr, futureEnd, cliente.codigo)
             ]),
             Promise.allSettled([
               buscarVendasElosgate(unit, cliente.cpf)
@@ -109,9 +101,18 @@ const Index = () => {
           
           results.forEach(res => {
             if (res.status === "fulfilled" && Array.isArray(res.value)) {
-              res.value.forEach((a: any) => {
-                if (a.cliente && String(a.cliente.cod) === String(cliente.codigo)) {
-                  allAppointments.set(a.codConsulta, a);
+              res.value.forEach((a: AgendamentoHistorico) => {
+                if (a && a.codConsulta) {
+                  const statusStr = String(a.status || "").trim().toLowerCase();
+                  // Ignorar agendamentos desmarcados ou cancelados
+                  if (statusStr.includes("desmarca") || statusStr.includes("cancel")) {
+                    return;
+                  }
+                  const clientCod = a.cliente?.cod ? String(a.cliente.cod).trim() : null;
+                  const targetCod = String(cliente.codigo).trim();
+                  if (!clientCod || clientCod === targetCod) {
+                    allAppointments.set(a.codConsulta, a);
+                  }
                 }
               });
             }
@@ -176,6 +177,7 @@ const Index = () => {
       
       const idsToRemove = sameDayAppts.map(a => a.codConsulta);
       setAppointments(prev => prev.filter(a => !idsToRemove.includes(a.codConsulta)));
+      setRefreshKey(prev => prev + 1);
     } catch (err) {
       toast.error("Erro ao cancelar agendamento.");
       console.error(err);
@@ -287,7 +289,7 @@ const Index = () => {
         {step === "login" && <LoginStep onClienteFound={handleClienteFound} />}
         {step === "plans" && cliente && (
           <div className="space-y-6">
-            {vendas.length > 0 ? (
+            {validVendas.length > 0 ? (
               <Tabs defaultValue="agendamentos" className="w-full">
                 <TabsList className="grid w-full grid-cols-2 mb-6">
                   <TabsTrigger value="agendamentos" className="font-semibold">
@@ -306,6 +308,7 @@ const Index = () => {
                     onPlanSelected={handlePlanSelected}
                     onBack={() => handleBack("login")}
                     onRefresh={handleRefresh}
+                    refreshKey={refreshKey}
                   />
                   <AppointmentsStep
                     unit={unit}
@@ -321,7 +324,7 @@ const Index = () => {
                 
                 <TabsContent value="pagamentos" className="mt-0">
                   <PaymentsStep 
-                    vendas={vendas} 
+                    vendas={validVendas} 
                     loading={loadingFinanceiro} 
                     unit={unit} 
                     onBack={() => handleBack("login")}
@@ -339,6 +342,7 @@ const Index = () => {
                   onPlanSelected={handlePlanSelected}
                   onBack={() => handleBack("login")}
                   onRefresh={handleRefresh}
+                  refreshKey={refreshKey}
                 />
                 <AppointmentsStep
                   unit={unit}
@@ -359,6 +363,8 @@ const Index = () => {
             unit={unit}
             cliente={cliente}
             selection={selection}
+            appointments={appointments}
+            vendas={vendas}
             onBooked={handleBooked}
             onBack={() => handleBack("plans")}
           />
