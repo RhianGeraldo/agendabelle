@@ -271,6 +271,36 @@ export function addMinutesToTime(time: string, minutes: number): string {
   return minutesToTime(total);
 }
 
+export function isRemocaoTatuagem(text?: string | null): boolean {
+  if (!text) return false;
+  const normalized = text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  return (
+    normalized.includes("tatuag") ||
+    normalized.includes("tattoo") ||
+    (normalized.includes("remoc") && normalized.includes("tat"))
+  );
+}
+
+export function isPlanTattooRemoval(
+  plano: { nome?: string; label?: string; servicos?: { nome: string }[] },
+  servicos?: { nome: string }[]
+): boolean {
+  if (!plano) return false;
+  if (isRemocaoTatuagem(plano.nome) || isRemocaoTatuagem(plano.label)) {
+    return true;
+  }
+  if (plano.servicos && plano.servicos.some((s) => isRemocaoTatuagem(s.nome))) {
+    return true;
+  }
+  if (servicos && servicos.some((s) => isRemocaoTatuagem(s.nome))) {
+    return true;
+  }
+  return false;
+}
+
 export interface ParcelaElosgate {
   ID: string;
   Numero: number;

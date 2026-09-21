@@ -3,8 +3,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { buscarPlanos, buscarServicos, type Cliente, type Plano, type Servico, type AgendamentoHistorico } from "@/lib/api";
-import { ArrowLeft, ChevronRight, Loader2, Package, CheckCircle2, RefreshCw, Sparkles } from "lucide-react";
+import { 
+  buscarPlanos, 
+  buscarServicos, 
+  isRemocaoTatuagem, 
+  isPlanTattooRemoval, 
+  type Cliente, 
+  type Plano, 
+  type Servico, 
+  type AgendamentoHistorico 
+} from "@/lib/api";
+import { ArrowLeft, ChevronRight, Loader2, Package, CheckCircle2, RefreshCw, Sparkles, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +53,22 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
   const [selectingPlan, setSelectingPlan] = useState<number | string | null>(null);
   const [isMultiSelectOpen, setIsMultiSelectOpen] = useState(false);
   const [selectedPlanIds, setSelectedPlanIds] = useState<number[]>([]);
+  const [tattooModal, setTattooModal] = useState<{ isOpen: boolean; planoNome: string }>({
+    isOpen: false,
+    planoNome: "",
+  });
+
+  const formatPhone = (phone?: string) => {
+    if (!phone) return "";
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length === 11) {
+      return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+    }
+    if (digits.length === 10) {
+      return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+    }
+    return phone;
+  };
 
   const fetchPlanos = useCallback(async () => {
     try {
@@ -85,10 +110,26 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
   }, [appointments]);
 
   const handleSelectPlan = async (plano: Plano) => {
+    if (isPlanTattooRemoval(plano)) {
+      setTattooModal({
+        isOpen: true,
+        planoNome: plano.nome,
+      });
+      return;
+    }
+
     setSelectingPlan(plano.codPlano);
     try {
       const servicosRaw = await buscarServicos(unit, plano.codPlano);
       const servicos = Array.isArray(servicosRaw) ? servicosRaw : [];
+
+      if (servicos.some((s) => isRemocaoTatuagem(s.nome))) {
+        setTattooModal({
+          isOpen: true,
+          planoNome: plano.nome,
+        });
+        return;
+      }
       
       const filteredServicos = servicos.filter(s => {
         const key = s.nome.split(" - ")[0].trim().toLowerCase();
@@ -141,6 +182,14 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
     const isSelected = selectedPlanIds.includes(plano.codPlano);
     
     if (!isSelected) {
+      if (isPlanTattooRemoval(plano)) {
+        setTattooModal({
+          isOpen: true,
+          planoNome: plano.nome,
+        });
+        return;
+      }
+
       const isPlanDepilacao = isDepilacao(plano.nome) || (plano.servicos || []).some(s => isDepilacao(s.nome));
       const isPlanClareamento = isClareamento(plano.nome) || (plano.servicos || []).some(s => isClareamento(s.nome));
       const isPlanFacialArea = isFacialArea(plano.nome) || (plano.servicos || []).some(s => isFacialArea(s.nome));
@@ -178,10 +227,30 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
     setSelectingPlan("all");
     try {
       const selectedPlans = planos.filter(p => selectedPlanIds.includes(p.codPlano));
+      if (selectedPlans.some(p => isPlanTattooRemoval(p))) {
+        setTattooModal({
+          isOpen: true,
+          planoNome: "Remoção de Tatuagem",
+        });
+        setSelectingPlan(null);
+        return;
+      }
+
       const selectionRaw = await Promise.all(selectedPlans.map(async (plano) => {
         const servicos = await buscarServicos(unit, plano.codPlano);
         return { plano, servicos: Array.isArray(servicos) ? servicos : [] };
       }));
+
+      // Se algum serviço retornado for remoção de tatuagem, interrompe
+      const hasTattooService = selectionRaw.some(item => item.servicos.some(s => isRemocaoTatuagem(s.nome)));
+      if (hasTattooService) {
+        setTattooModal({
+          isOpen: true,
+          planoNome: "Remoção de Tatuagem",
+        });
+        setSelectingPlan(null);
+        return;
+      }
 
       selectionRaw.sort((a, b) => b.servicos.length - a.servicos.length);
 
@@ -228,7 +297,7 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
     });
   };
 
-  const unbookedPlans = planos.filter(p => !isPlanBooked(p));
+  const unbookedPlans = planos.filter(p => !isPlanBooked(p) && !isPlanTattooRemoval(p));
 
   return (
     <>
@@ -301,6 +370,7 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
           <div className="space-y-3">
             {planos.map((plano) => {
               const booked = isPlanBooked(plano);
+              const isTattoo = isPlanTattooRemoval(plano);
               
               return (
               <button
@@ -315,15 +385,26 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
                 disabled={selectingPlan !== null}
                 className={cn(
                   "w-full text-left p-4 rounded-lg border border-border bg-card transition-all group disabled:opacity-50",
-                  booked ? "opacity-60 cursor-not-allowed border-orange-200/40" : "hover:border-primary/30 hover:bg-accent/50"
+                  booked 
+                    ? "opacity-60 cursor-not-allowed border-orange-200/40" 
+                    : isTattoo
+                    ? "hover:border-amber-500/40 hover:bg-amber-500/5 border-amber-500/20"
+                    : "hover:border-primary/30 hover:bg-accent/50"
                 )}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <Package className={cn("h-4 w-4 shrink-0", booked ? "text-orange-500" : "text-primary")} />
+                      <Package className={cn("h-4 w-4 shrink-0", booked ? "text-orange-500" : isTattoo ? "text-amber-500" : "text-primary")} />
                       <span className="font-medium text-sm truncate">{plano.nome}</span>
                     </div>
+                    {isTattoo && (
+                      <div className="mt-1 mb-1.5">
+                        <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 font-medium">
+                          <CalendarClock className="h-3 w-3" /> Data sob consulta (Máquina 1 dia na clínica)
+                        </span>
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       {(plano.servicos || []).map((s) => (
                         <span
@@ -432,6 +513,49 @@ export function PlansStep({ unit, cliente, appointments, onPlanSelected, onBack,
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
               ) : null}
               Continuar ({selectedPlanIds.length})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog 
+        open={tattooModal.isOpen} 
+        onOpenChange={(open) => {
+          if (!open) setTattooModal(prev => ({ ...prev, isOpen: false }));
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="space-y-3">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <CalendarClock className="h-7 w-7" />
+            </div>
+            <DialogTitle className="text-center text-lg font-bold">
+              Agendamento de Remoção de Tatuagem
+            </DialogTitle>
+            <DialogDescription className="text-center text-sm space-y-3 pt-1">
+              <span className="block font-semibold text-foreground text-sm">
+                {tattooModal.planoNome}
+              </span>
+              <span className="block text-muted-foreground leading-relaxed text-xs sm:text-sm">
+                A máquina de remoção de tatuagem é um equipamento especial que fica <strong>somente 1 dia na clínica</strong>.
+              </span>
+              <span className="block text-muted-foreground leading-relaxed text-xs sm:text-sm">
+                Por esse motivo, o agendamento possui uma data específica e <strong>nossa equipe entrará em contato diretamente com você</strong> para agendar o seu horário no dia exato em que a máquina estará disponível na unidade.
+              </span>
+              {cliente?.celular && (
+                <span className="block bg-muted/60 p-2.5 rounded-lg border border-border/60 text-xs text-muted-foreground">
+                  Entraremos em contato pelo telefone cadastrado:{" "}
+                  <strong className="text-foreground">{formatPhone(cliente.celular)}</strong>
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="pt-2">
+            <Button 
+              className="w-full font-semibold"
+              onClick={() => setTattooModal(prev => ({ ...prev, isOpen: false }))}
+            >
+              Entendi, vou aguardar o contato
             </Button>
           </DialogFooter>
         </DialogContent>

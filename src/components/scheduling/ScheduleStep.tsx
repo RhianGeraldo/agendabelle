@@ -15,6 +15,8 @@ import {
   obterURLVenda,
   buscarVendasElosgate,
   isSaleDelinquent,
+  isRemocaoTatuagem,
+  isPlanTattooRemoval,
   type Cliente,
   type Plano,
   type Servico,
@@ -22,7 +24,7 @@ import {
   type AgendamentoHistorico,
   type VendaElosgate,
 } from "@/lib/api";
-import { ArrowLeft, Loader2, Calendar, Package, User, AlertCircle, ExternalLink } from "lucide-react";
+import { ArrowLeft, Loader2, Calendar, Package, User, AlertCircle, ExternalLink, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 import { format, addDays, subMonths, addMonths, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -86,6 +88,26 @@ export function ScheduleStep({ unit, cliente, selection, appointments = [], vend
     statusString: "",
     paymentUrl: null,
   });
+
+  const [tattooModal, setTattooModal] = useState<{
+    isOpen: boolean;
+    planoNome: string;
+  }>({
+    isOpen: false,
+    planoNome: "",
+  });
+
+  const formatPhone = (phone?: string) => {
+    if (!phone) return "";
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length === 11) {
+      return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+    }
+    if (digits.length === 10) {
+      return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+    }
+    return phone;
+  };
 
   const allServicos = useMemo(() => selection.flatMap(s => s.servicos), [selection]);
   const tempoTotal = useMemo(() => allServicos.reduce((sum, s) => sum + s.tempo, 0), [allServicos]);
@@ -309,6 +331,20 @@ export function ScheduleStep({ unit, cliente, selection, appointments = [], vend
     if (!selectedSlot) return;
     const { slot, dia } = selectedSlot;
     
+    // 0. Intercepta se for Remoção de Tatuagem
+    const tattooItem = selection.find(
+      (sel) =>
+        isPlanTattooRemoval(sel.plano, sel.servicos) ||
+        sel.servicos.some((s) => isRemocaoTatuagem(s.nome))
+    );
+    if (tattooItem) {
+      setTattooModal({
+        isOpen: true,
+        planoNome: tattooItem.plano.nome,
+      });
+      return;
+    }
+
     // Validação Financeira (Elosgate) no clique de confirmar agendamento
     // Se o cliente tiver planos na Elosgate e estiver com inadimplência, ele não deve agendar.
     let currentVendas = vendas;
@@ -672,6 +708,46 @@ export function ScheduleStep({ unit, cliente, selection, appointments = [], vend
         </Button>
       </div>
     </Card>
+
+    <Dialog open={tattooModal.isOpen} onOpenChange={(open) => {
+      if (!open) setTattooModal(prev => ({ ...prev, isOpen: false }));
+    }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader className="space-y-3">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400">
+            <CalendarClock className="h-7 w-7" />
+          </div>
+          <DialogTitle className="text-center text-lg font-bold">
+            Agendamento de Remoção de Tatuagem
+          </DialogTitle>
+          <DialogDescription className="text-center text-sm space-y-3 pt-1">
+            <span className="block font-semibold text-foreground text-sm">
+              {tattooModal.planoNome}
+            </span>
+            <span className="block text-muted-foreground leading-relaxed text-xs sm:text-sm">
+              A máquina de remoção de tatuagem é um equipamento especial que fica <strong>somente 1 dia na clínica</strong>.
+            </span>
+            <span className="block text-muted-foreground leading-relaxed text-xs sm:text-sm">
+              Por esse motivo, o agendamento possui uma data específica e <strong>nossa equipe entrará em contato diretamente com você</strong> para agendar o seu horário no dia exato em que a máquina estará disponível na unidade.
+            </span>
+            {cliente?.celular && (
+              <span className="block bg-muted/60 p-2.5 rounded-lg border border-border/60 text-xs text-muted-foreground">
+                Entraremos em contato pelo telefone cadastrado:{" "}
+                <strong className="text-foreground">{formatPhone(cliente.celular)}</strong>
+              </span>
+            )}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="pt-2">
+          <Button 
+            className="w-full font-semibold"
+            onClick={() => setTattooModal(prev => ({ ...prev, isOpen: false }))}
+          >
+            Entendi, vou aguardar o contato
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <Dialog open={blockedPaymentModal.isOpen} onOpenChange={(open) => {
       if (!open) setBlockedPaymentModal(prev => ({ ...prev, isOpen: false }));
