@@ -1,3 +1,5 @@
+import { addDays, parse } from "date-fns";
+
 export interface Unit {
   id: string;
   label: string;
@@ -269,6 +271,115 @@ export function minutesToTime(minutes: number): string {
 export function addMinutesToTime(time: string, minutes: number): string {
   const total = timeToMinutes(time) + minutes;
   return minutesToTime(total);
+}
+
+export function calcularDataMinimaAgendamento({
+  hoje = new Date(),
+  allServicos,
+  historico = [],
+}: {
+  hoje?: Date;
+  allServicos: { codServico?: number | string; nome: string }[];
+  historico?: AgendamentoHistorico[];
+}): Date {
+  let foundDate = new Date(hoje);
+  foundDate.setHours(0, 0, 0, 0);
+
+  const isDepilacao = (nome: string) => !!nome && nome.toLowerCase().includes("depila");
+  const isClareamento = (nome: string) => !!nome && nome.toLowerCase().includes("clareamento");
+  const isFacialArea = (nome: string) => {
+    if (!nome) return false;
+    const n = nome.toLowerCase();
+    return (n.includes("barba") || n.includes("buço") || n.includes("buco") || n.includes("facial")) && !n.includes("rejuvenescimento");
+  };
+  const isRejuvenescimento = (nome: string) => !!nome && nome.toLowerCase().includes("rejuvenescimento");
+
+  const eventosValidos = (historico || []).filter((a: AgendamentoHistorico) => {
+    if (!a.status || !a.servicos) return false;
+    const statusLower = a.status.trim().toLowerCase();
+    return ["atendido", "aguardando", "em andamento", "marcado", "confirmado"].includes(statusLower);
+  });
+
+  // Ordena decrescente pela data mais recente
+  const sortedHist = [...eventosValidos].sort((a: AgendamentoHistorico, b: AgendamentoHistorico) => {
+    const dA = parse(a.dtAgenda, "dd/MM/yyyy", new Date());
+    const dB = parse(b.dtAgenda, "dd/MM/yyyy", new Date());
+    if (dB.getTime() === dA.getTime()) {
+      return (b.hrConsulta || "").localeCompare(a.hrConsulta || "");
+    }
+    return dB.getTime() - dA.getTime();
+  });
+
+  const agendandoDepil = allServicos.some((s) => isDepilacao(s.nome));
+  const agendandoClareamento = allServicos.some((s) => isClareamento(s.nome));
+  const agendandoFacialArea = allServicos.some((s) => isFacialArea(s.nome));
+  const agendandoRejuvenescimento = allServicos.some((s) => isRejuvenescimento(s.nome));
+
+  const latestDepilOrClareamento = sortedHist.find((a: AgendamentoHistorico) =>
+    a.servicos.some((s) => isDepilacao(s.nome) || isClareamento(s.nome))
+  );
+
+  const latestFacialOrRejuve = sortedHist.find((a: AgendamentoHistorico) =>
+    a.servicos.some((s) => isFacialArea(s.nome) || isRejuvenescimento(s.nome))
+  );
+
+  const latestSameService = sortedHist.find((a: AgendamentoHistorico) =>
+    a.servicos.some((as) =>
+      allServicos.some((s) => String(s.codServico).trim() === String(as.cod || "").trim())
+    )
+  );
+
+  let suggestedMin = new Date(hoje);
+  suggestedMin.setHours(0, 0, 0, 0);
+
+  // Regra Especial de Cruzamento (Depilação e Clareamento se afetam mutuamente - 25 dias)
+  if ((agendandoDepil || agendandoClareamento) && latestDepilOrClareamento) {
+    const dtUltimo = parse(latestDepilOrClareamento.dtAgenda, "dd/MM/yyyy", new Date());
+    const ultimoFoiDepil = latestDepilOrClareamento.servicos.some((s) => isDepilacao(s.nome));
+    const ultimoFoiClareamento = latestDepilOrClareamento.servicos.some((s) => isClareamento(s.nome));
+
+    let dias = 0;
+    if (ultimoFoiDepil && agendandoClareamento) dias = 25;
+    else if (ultimoFoiClareamento && agendandoDepil) dias = 25;
+    else if (ultimoFoiClareamento && agendandoClareamento) dias = 25;
+
+    if (dias > 0) {
+      const d = addDays(dtUltimo, dias);
+      if (d > suggestedMin) suggestedMin = d;
+    }
+  }
+
+  // Regra Especial de Cruzamento (Área Facial vs Rejuvenescimento Facial - 45 dias)
+  if ((agendandoFacialArea || agendandoRejuvenescimento) && latestFacialOrRejuve) {
+    const dtUltimo = parse(latestFacialOrRejuve.dtAgenda, "dd/MM/yyyy", new Date());
+    const ultimoFoiFacialArea = latestFacialOrRejuve.servicos.some((s) => isFacialArea(s.nome));
+    const ultimoFoiRejuvenescimento = latestFacialOrRejuve.servicos.some((s) => isRejuvenescimento(s.nome));
+
+    let dias = 0;
+    if (ultimoFoiFacialArea && agendandoRejuvenescimento) dias = 45;
+    else if (ultimoFoiRejuvenescimento && agendandoFacialArea) dias = 45;
+
+    if (dias > 0) {
+      const d = addDays(dtUltimo, dias);
+      if (d > suggestedMin) suggestedMin = d;
+    }
+  }
+
+  // Regra Geral / Mesmo Serviço: 30 dias (ou 25 dias caso seja clareamento)
+  if (latestSameService) {
+    const dtUltimo = parse(latestSameService.dtAgenda, "dd/MM/yyyy", new Date());
+    const isClareamentoServico = latestSameService.servicos.some((s) => isClareamento(s.nome)) || agendandoClareamento;
+    const diasIntervalo = isClareamentoServico ? 25 : 30;
+    const d = addDays(dtUltimo, diasIntervalo);
+    if (d > suggestedMin) suggestedMin = d;
+  }
+
+  if (suggestedMin > hoje) {
+    if (suggestedMin.getDay() === 0) suggestedMin = addDays(suggestedMin, 1);
+    foundDate = suggestedMin;
+  }
+
+  return foundDate;
 }
 
 export function isRemocaoTatuagem(text?: string | null): boolean {
